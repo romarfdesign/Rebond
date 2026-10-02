@@ -1,0 +1,16 @@
+{
+  "name": "rebond",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Rebond, jeu de plateforme 3D multijoueur",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "ws": "^8.22.0"
+  }
+}
