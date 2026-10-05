@@ -977,6 +977,8 @@ class Level {
       else if (o.type === 'turret') this.addTurret(o);
       else if (o.type === 'door') this.addDoor(o);
       else if (o.type === 'wave') this.addWave(o);
+      else if (o.type === 'rain') this.addRain(o);
+      else if (o.type === 'stamp') this.addStamp(o);
       else if (o.type === 'foe' && (!o.solo || opts.solo)) this.addFoe(o);
     });
     this.addGizmos();
@@ -3489,6 +3491,9 @@ function LB(theme, name, sub) {
     // door: a wall `w` wide and `h` high across x (axis 'x') or z; closes on a pattern or for the defender
     door(x, top, z, w, h, axis, o) { put(d.obstacles, Object.assign({ type: 'door', x, top, z, w, h, axis }, o || {})); return api; },
     foe(kind, x, top, z, region, o) { put(d.obstacles, Object.assign({ type: 'foe', kind, x, top, z, region }, o || {})); return api; },
+    // the director's attacks: binders raining on every player, a giant stamp crushing one zone
+    rain(o) { put(d.obstacles, Object.assign({ type: 'rain' }, o || {})); return api; },
+    stamp(x, top, z, w, dd, o) { put(d.obstacles, Object.assign({ type: 'stamp', x, top, z, w, d: dd }, o || {})); return api; },
     // shock wave rolling across a floor from (x, z): jump over it
     wave(x, top, z, r1, o) { put(d.obstacles, Object.assign({ type: 'wave', x, top, z, r1, speed: 9, per: 3.6 }, o || {})); return api; },
     // block that shoots out along `ax` by `amp` every `per` seconds (or when the defender says so)
@@ -3714,57 +3719,68 @@ function level4() {
 }
 
 // Level 5: the boss. The director watches from behind his desk at the end of the course; the closer the
-// leading player gets, the more he throws at everyone (phases 1 to 4). In Défense the defender plays him.
+// leading player gets, the more he throws at everyone (phases 1 to 5). In Défense the defender plays him.
+// Small platforms, narrow beams, double-jump gaps and only two checkpoints: the hardest course of the game.
 function level5() {
   const b = LB('direction', 'Le bureau du directeur', 'Le boss final : plus vous approchez, plus il s\'énerve');
-  b.boss({ x: 0, top: 14, z: -172.5, scale: 14, at: [0.1, 0.3, 0.5, 0.72] })
+  b.boss({ x: 0, top: 14, z: -176, scale: 14, at: [0.04, 0.17, 0.33, 0.52, 0.85] })
     .start(0, 0, 0, 10, 8)
     .sign(0, 3.6, -3.4, 'Le directeur vous attend au bout du couloir')
-    // A · cabinets and boxes
-    .p(0, 0.8, -8.5, 3.5, 3.5, { trap: true }).gem(0, 1.7, -8.5)
-    .c(-3, 1.6, -14, 3, 3).gem(-3, 2.5, -14)
-    .c(1, 2.4, -19.5, 3, 3)
-    .m(1, 2.4, -26.5, 3, 3, { ax: 'x', amp: 4, per: 3.4 }).gem(1, 3.3, -26.5)
-    .p(0, 3.2, -34, 8, 7).sweep(0, 3.2, -34, 7, 1.5, 0, { vary: 1.2, vper: 5 }).check(2.8, 3.2, -31.4).gem(-2.6, 4.2, -36.2)
-    // B · beams under the director's stamps
-    .p(-3, 4, -41.5, 3, 3).gem(-3, 4.9, -41.5)
-    .p(-3, 4.8, -47.5, 1.4, 6)
-    .p(1.5, 5.6, -54.5, 1.4, 6, { blink: { on: 2.4, off: 1.2 } }).gem(1.5, 6.5, -54.5)
-    .p(1.5, 6.4, -61, 3, 3)
-    .p(0, 6.4, -68.5, 8, 7).check(-2.8, 6.4, -66).gem(2.6, 7.3, -70)
-    .sign(0, 9.4, -64.6, 'La porte s\'ouvre et se ferme')
+    // A · the trapped corridor: nothing is safe from the first jump
+    .p(0, 0.6, -9, 2.6, 2.6, { blink: { on: 2.2, off: 1.2 } }).gem(0, 1.5, -9)
+    .c(-2.5, 1.2, -14.5, 2.4, 2.4).gem(-2.5, 2.1, -14.5)
+    .m(0.5, 1.8, -21, 2.4, 2.4, { ax: 'x', amp: 3.5, per: 2.8 })
+    .p(0.5, 2.4, -29.5, 2.4, 2.4).gem(0.5, 3.3, -29.5)
+    .sign(-2.4, 5.6, -26.6, 'Double saut obligatoire')
+    .p(0, 3.2, -37, 7, 6).sweep(0, 3.2, -37, 6.5, 1.8, 0, { vary: 1.4, vper: 4.5 }).check(2.7, 3.2, -34.8).gem(-2.6, 4.2, -39.2)
+    // B · beams under the stamps
+    .p(-3, 4, -44.5, 2.4, 2.4).gem(-3, 4.9, -44.5)
+    .p(-3, 4.8, -51.5, 1.1, 6)
+    .p(1.5, 5.6, -59.5, 1.1, 6, { blink: { on: 2.2, off: 1.3 } }).gem(1.5, 6.5, -59.5)
+    .p(1.5, 6.4, -67, 2.2, 2.2)
+    .p(-2, 6.4, -74, 5, 5).gem(-3.6, 7.3, -75.6)
     // C · the air-conditioning gallery
-    .p(0, 7.2, -78.5, 1.6, 7).gem(0, 8.1, -78.5)
-    .p(0, 8, -88, 1.6, 7).gem(0, 8.9, -88)
-    .m(0, 8.8, -96, 3, 3, { ax: 'y', amp: 1.2, per: 4 })
-    .p(0, 9.6, -104, 6, 6).check(2, 9.6, -102.4).gem(-1.6, 10.5, -105)
+    .p(-2, 7.2, -81.5, 1.1, 6).gem(-2, 8.1, -81.5)
+    .p(1.2, 8, -91.5, 1.1, 6).gem(1.2, 8.9, -91.5)
+    .m(1.2, 8.8, -99.5, 2.4, 2.4, { ax: 'y', amp: 1.2, per: 3.2 })
+    .p(0, 9.6, -107, 5, 5).check(1.6, 9.6, -105.4).gem(-1.6, 10.5, -106)
     // D · the security floor
-    .p(0, 10.4, -115, 11, 9).gem(-4, 11.3, -111.5).gem(4, 11.3, -118.5)
-    .p(0, 12, -124.5, 3, 3).gem(0, 12.9, -124.5)
-    .p(0, 13.2, -130, 3, 3)
-    // E · the director's desk
-    .p(0, 14, -140, 16, 14).bumper(-4.5, 14, -137.5).bumper(4.5, 14, -142.5).gem(-6, 14.9, -145).gem(6, 14.9, -135)
-    .finish(0, 14, -153, 12, 8)
-    // phase 1 · the director throws rubber stamps at the closest player
+    .p(0, 10.4, -118, 10, 8).gem(-3.6, 11.3, -115).gem(3.6, 11.3, -121)
+    .p(-2.5, 12, -126.5, 2.4, 2.4).gem(-2.5, 12.9, -126.5)
+    .p(1.5, 13.2, -132, 2.2, 2.2);
+  // E · the director's blotter: 16 mahogany tiles; the outer ones give way when he loses his temper
+  for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) {
+    b.p(-6 + i * 4, 14, -137.75 - j * 3.5, 4, 3.5, { kind: 'crumble', noTouch: true, ringTile: 0, nosup: true, deskTile: true, edgeTile: i === 0 || i === 3 || j === 0 || j === 3, route: i === 2 && j === 1 });
+  }
+  b.deco({ type: 'deskBase', x: 0, top: 14, z: -143, w: 16, d: 14 })
+    .gem(-6, 14.9, -147.5).gem(6, 14.9, -138)
+    .finish(0, 14, -156, 12, 8)
+    // phase 1 · the director throws bursts of rubber stamps, at the leader and at the stragglers
     .phase(1)
-    .turret(0, 14, -172.5, { vis: 'boss', noBase: true, range: 125, rate: 2.9, shotSpeed: 17, shotLife: 7.5, shotScale: 1.8, label: 'Tampon', cd: 5 })
-    .cover(1.6, 6.4, -66.6, 2.4, 0.4, 1.6).cover(-1.8, 9.6, -105.8, 2.4, 0.4, 1.6)
-    // phase 2 · air conditioning: two fans across the gallery and a door out of the second checkpoint
+    .turret(0, 14, -176, { vis: 'boss', noBase: true, range: 125, rate: 2.4, burst: 3, spread: true, shotSpeed: 20, shotLife: 7, shotScale: 1.8, label: 'Tampon', cd: 5 })
+    .cover(-0.8, 6.4, -72.4, 2.4, 0.4, 1.6).cover(-1.2, 9.6, -108.6, 2.4, 0.4, 1.6)
+    // phase 2 · air conditioning, a door, and binders raining on everyone
     .phase(2)
-    .door(0, 6.4, -71.7, 8, 2.6, 'x', { on: 2, off: 2.6 })
-    .p(-7.2, 6.8, -78.5, 2.2, 2.2, { route: false })
-    .fan(-7.2, 8.9, -78.5, [1, 0, 0], 13, 1.9, 4.4, { on: 2.4, off: 2.4 })
-    .p(7.2, 7.6, -88, 2.2, 2.2, { route: false })
-    .fan(7.2, 9.7, -88, [-1, 0, 0], 13, 1.9, 4.4, { on: 2.4, off: 2.4, ph: 1.2 })
-    // phase 3 · security: two vacuum robots, partitions and a printer on the security floor
+    .door(-2, 6.4, -76.2, 5, 2.6, 'x', { on: 2, off: 2.4 })
+    .p(-9.2, 6.8, -81.5, 2.2, 2.2, { route: false })
+    .fan(-9.2, 8.9, -81.5, [1, 0, 0], 13, 1.9, 5, { on: 2.4, off: 2 })
+    .p(8.4, 7.6, -91.5, 2.2, 2.2, { route: false })
+    .fan(8.4, 9.7, -91.5, [-1, 0, 0], 13, 1.9, 5, { on: 2.4, off: 2, ph: 1.1 })
+    .rain({ label: 'Pluie de dossiers', cd: 6 })
+    // phase 3 · security: vacuum robots, a printer, and giant stamps crushing whole platforms
     .phase(3)
-    .foe('robot', -3, 10.4, -113, [-5.5, 5.5, -119.5, -110.5]).foe('robot', 3, 10.4, -117, [-5.5, 5.5, -119.5, -110.5])
-    .cover(-2.6, 10.4, -112.4, 2.6, 0.4, 1.6).cover(2.6, 10.4, -117.6, 2.6, 0.4, 1.6)
-    .p(8.6, 11.4, -115, 2.4, 2.4, { route: false }).turret(8.6, 11.4, -115, { rate: 2.6, range: 16 })
-    // phase 4 · overtime: the director slams his desk, a ruler spins on the blotter
+    .foe('robot', -3, 10.4, -116, [-5, 5, -122, -114]).foe('robot', 3, 10.4, -120, [-5, 5, -122, -114])
+    .cover(-2.6, 10.4, -115.6, 2.6, 0.4, 1.6).cover(2.6, 10.4, -120.4, 2.6, 0.4, 1.6)
+    .p(8.4, 11.4, -118, 2.4, 2.4, { route: false }).turret(8.4, 11.4, -118, { rate: 2.2, range: 16 })
+    .stamp(0, 3.2, -37, 4, 4).stamp(-2, 6.4, -74, 4, 4).stamp(0, 10.4, -118, 4.5, 4.5).stamp(0, 14, -143.25, 5, 5)
+    // phase 4 · overtime: he slams his desk, a ruler spins on the blotter
     .phase(4)
-    .wave(0, 14, -148.6, 17, { speed: 8.5, per: 3.6, label: 'Coup de poing' })
-    .sweep(0, 14, -140, 8, 1.15, 0, { vary: 0.8, vper: 6 })
+    .wave(0, 14, -151, 17, { speed: 8.5, per: 3.6, label: 'Coup de poing' })
+    .sweep(0, 14, -143.25, 7, 1.3, 0, { vary: 0.9, vper: 5 })
+    // phase 5 · rage: double shock waves, two more robots on the blotter, and the desk falls apart
+    .phase(5)
+    .wave(0, 14, -151, 17, { speed: 9.5, per: 3.6, ph: 1.8, label: 'Coup de poing', mdx: 4 })
+    .foe('robot', -5, 14, -139, [-7.6, 7.6, -149.6, -136.4]).foe('robot', 5, 14, -148, [-7.6, 7.6, -149.6, -136.4])
     .phase(0);
   return b.def;
 }
@@ -5543,7 +5559,7 @@ Level.prototype.addTurret = function (o) {
   const tu = { o, vis, base, yaw: o.ry || 0, t: o.ph || 0, rate: o.rate || 2.4, charge: 0, chargeT: 0, volley: 0, volT: 0, target: null, losT: 0, los: false, warned: false };
   vis.head.rotation.y = tu.yaw;
   L.turrets.push(tu);
-  if (o.mech !== false) L.addMech({ kind: 'turret', label: o.label || 'Tourelle', pos: vis.markerPos ? vis.markerPos() : new THREE.Vector3(o.x, o.top + 2.2, o.z), cd: o.cd || 6, trigger() { tu.volley = 3; tu.chargeT = 0.5; tu.volT = 0; } });
+  if (o.mech !== false) L.addMech({ kind: 'turret', label: o.label || 'Tourelle', pos: vis.markerPos ? vis.markerPos() : new THREE.Vector3(o.x, o.top + 2.2, o.z), follow: o.vis === 'boss' ? () => bossFollowPos(-2.8) : null, cd: o.cd || 6, trigger() { tu.volley = 3; tu.chargeT = 0.5; tu.volT = 0; } });
   if (o.vis === 'boss' && L.boss) L.boss.tu = tu;
   if (!L.shotKit) L.shotKit = hzVis(L, 'projectile');
   return tu;
@@ -5628,10 +5644,13 @@ function hazardsTick(dt, now) {
       if (tu.losT <= 0) {
         tu.losT = 0.15;
         let best = null, bd = tu.o.range || 16;
+        const seen = [];
         for (const c of targets) {
           const d = Math.hypot(c.x - _mz.x, c.y + 0.5 - _mz.y, c.z - _mz.z);
-          if (d < bd && !segmentBlocked(L, _mz.x, _mz.y, _mz.z, c.x, c.y + 0.6, c.z, tu.base)) { bd = d; best = c; }
+          if (d < (tu.o.range || 16) && !segmentBlocked(L, _mz.x, _mz.y, _mz.z, c.x, c.y + 0.6, c.z, tu.base)) { seen.push([d, c]); if (d < bd) { bd = d; best = c; } }
         }
+        // `spread`: each burst goes to the next visible player, stragglers included
+        if (tu.o.spread && seen.length > 1) { seen.sort((a, b) => a[0] - b[0]); best = seen[(tu.pick || 0) % seen.length][1]; }
         tu.target = best;
       }
       if (tu.target) tu.yaw = dampAngle(tu.yaw, Math.atan2(tu.target.x - tu.o.x, tu.target.z - tu.o.z), 7, dt);
@@ -5643,10 +5662,19 @@ function hazardsTick(dt, now) {
         } else tu.charge = Math.max(0, tu.charge - dt * 3);
       } else if (Game.running) {
         const rate = tu.rate;
-        tu.t += dt;
-        if (!tu.target) tu.t = Math.min(tu.t, rate - 0.6);
-        tu.charge = clamp((tu.t - (rate - 0.55)) / 0.55, 0, 1);
-        if (tu.t >= rate) { tu.t = 0; tu.charge = 0; turretFire(L, tu, tu.target); }
+        if (tu.burstLeft > 0) {
+          tu.volT -= dt; tu.charge = 0;
+          if (tu.volT <= 0) { turretFire(L, tu, tu.target); tu.burstLeft--; tu.volT = 0.17; }
+        } else {
+          tu.t += dt;
+          if (!tu.target) tu.t = Math.min(tu.t, rate - 0.6);
+          tu.charge = clamp((tu.t - (rate - 0.55)) / 0.55, 0, 1);
+          if (tu.t >= rate) {
+            tu.t = 0; tu.charge = 0;
+            if (tu.o.burst) { tu.burstLeft = tu.o.burst; tu.volT = 0; tu.pick = (tu.pick || 0) + 1; }
+            else turretFire(L, tu, tu.target);
+          }
+        }
       }
       tu.vis.setCharge(tu.charge);
     }
@@ -5753,8 +5781,10 @@ const BOSS_PHASES = [
   { say: 'Qui vous a laissés entrer ?', toast: 'Le directeur vous a vus : il lance des tampons', label: 'Renfort : tampons' },
   { say: 'Il fait trop chaud ici', toast: 'Le directeur allume la clim : gare aux courants d\'air', label: 'Renfort : clim' },
   { say: 'Sécurité !', toast: 'Le directeur lâche ses robots aspirateurs', label: 'Renfort : robots' },
-  { say: 'Heures sup pour tout le monde !', toast: 'Le directeur tape sur son bureau : sautez par-dessus les ondes', label: 'Renfort : heures sup' }
+  { say: 'Heures sup pour tout le monde !', toast: 'Le directeur tape sur son bureau : sautez par-dessus les ondes', label: 'Renfort : heures sup' },
+  { say: 'Vous êtes tous virés !', toast: 'Le directeur est furieux : son bureau part en morceaux', label: 'Renfort : colère' }
 ];
+const BOSS_MAX = 5;
 
 // ---------- the executive floor: the office theme, warmer and posher ----------
 function dirMats(L) {
@@ -5802,6 +5832,15 @@ function bossPortrait(L) {
       const z1 = b.zMin - 52;
       g.add(L.mesh(boxGeo(30, 37, 1.2), M.edge, { p: [0, F + 34, z1 + 0.7] }));
       g.add(L.mesh(L.ownGeo(new THREE.PlaneGeometry(27, 34)), L.basic('portraitM', { map: bossPortrait(L) }), { p: [0, F + 34, z1 + 1.35] }));
+    },
+    deco(L, d) {
+      if (d.type !== 'deskBase') return B.deco ? B.deco.call(this, L, d) : undefined;
+      // legs and modesty panel under the tiled blotter
+      const M = this.mats(L), g = new THREE.Group(), span = d.top - 1 - L.floorY;
+      for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) g.add(L.mesh(boxGeo(0.9, span, 0.9), M.laminate, { p: [d.x + sx * (d.w / 2 - 0.9), L.floorY + span / 2, d.z + sz * (d.d / 2 - 0.9)], cast: true }));
+      g.add(L.mesh(boxGeo(d.w - 1.8, 5, 0.3), M.laminate, { p: [d.x, d.top - 3.5, d.z - d.d / 2 + 0.9] }));
+      g.add(L.mesh(boxGeo(d.w + 0.2, 0.25, d.d + 0.2), M.edge, { p: [d.x, d.top - 1.15, d.z] }));
+      L.root.add(g);
     }
   });
 })();
@@ -5867,7 +5906,9 @@ Level.prototype.addBoss = function (o) {
   const deskY = (o.top + 0.25 - baseY) / s;
   const boss = {
     o, blob, s, baseY, bubble, bubbleT: 0, tu: null,
-    raise: 0, throwT: 0, warn: 0, slamT: 0, angryT: 0,
+    raise: 0, throwT: 0, warn: 0, slamT: 0, angryT: 0, rageK: 0, rageOn: false, steamT: 0,
+    baseCol: blob.mat.color.clone(), rageCol: col('#B2323F'),
+    rage() { this.rageOn = true; this.angry(); },
     say(text, dur) { bubble.set(text); bubble.sprite.visible = true; this.bubbleT = dur || 3.6; },
     angry() { this.angryT = 1.2; blob.impulse(-7); blob.jiggle(12); },
     windup() { this.warn = 1; },
@@ -5883,6 +5924,9 @@ Level.prototype.addBoss = function (o) {
     },
     tick(dt) {
       blob.update(dt, clock.t, { grounded: true, vy: 0, speed: 0 });
+      // rage: turns red and steams from under his hat
+      if (this.rageOn && this.rageK < 1) { this.rageK = Math.min(1, this.rageK + dt * 0.8); blob.mat.color.copy(this.baseCol).lerp(this.rageCol, this.rageK); }
+      if (this.rageOn) { this.steamT -= dt; if (this.steamT <= 0) { this.steamT = 0.3; const r = blob.root.rotation.y; for (const sx of [-1, 1]) FX.burst(new THREE.Vector3(o.x + Math.cos(r) * sx * 0.3 * s, baseY + 1.05 * s, o.z - Math.sin(r) * sx * 0.3 * s), '#FFFFFF', 3, 2, 0.5, 6, 0.9, -2); } }
       if (this.bubbleT > 0) { this.bubbleT -= dt; if (this.bubbleT <= 0) bubble.sprite.visible = false; }
       if (this.angryT > 0) this.angryT -= dt;
       if (this.throwT > 0) this.throwT = Math.max(0, this.throwT - dt * 2.5);
@@ -5908,7 +5952,7 @@ Level.prototype.addBoss = function (o) {
 // Défense: one marker per reinforcement, placed on the course where the runners will be when it unlocks
 Level.prototype.bossMechs = function () {
   const L = this, B = this.boss;
-  for (let k = 1; k <= 4; k++) {
+  for (let k = 1; k <= BOSS_MAX; k++) {
     if (!L.phases[k]) continue;
     const at = B.o.at[k - 1];
     L.addMech({
@@ -5974,7 +6018,7 @@ Level.prototype.addWave = function (o) {
     }
   };
   L.obstacles.push(w);
-  if (o.mech !== false) L.addMech({ kind: 'wave', label: o.label || 'Onde de choc', pos: new THREE.Vector3(o.x, o.top + 3.2, o.z + 5), cd: o.cd || 6, trigger() { w.fireAt = Game.lt; } });
+  if (o.mech !== false) L.addMech({ kind: 'wave', label: o.label || 'Onde de choc', pos: new THREE.Vector3(o.x + (o.mdx || 0), o.top + 3.2, o.z + 5), cd: o.cd || 6, trigger() { w.fireAt = Game.lt; } });
   return w;
 };
 
@@ -5993,13 +6037,14 @@ function leadProgress() {
 }
 function bossEnable(k) {
   const L = Game.level;
-  if (!L || !L.boss || k < 1 || k > 4) return;
+  if (!L || !L.boss || k < 1 || k > BOSS_MAX) return;
   const fresh = L.enablePhase(k);
   Game.bossPhase = Math.max(Game.bossPhase || 0, k);
-  if (k === 4 && L.boss.tu) L.boss.tu.rate = 1.8;
+  if (L.boss.tu) L.boss.tu.rate = Game.bossPhase >= 5 ? 1.25 : Game.bossPhase >= 4 ? 1.7 : 2.4;
   if (!fresh) return;
   const ph = BOSS_PHASES[k];
   L.boss.say(ph.say, 3.8); L.boss.angry();
+  if (k === 5) L.boss.rage();
   SFX.boss();
   toast(ph.toast, 3400);
 }
@@ -6015,9 +6060,24 @@ function bossTick(dt) {
       if ((+Net.me.bs || 0) !== target) Net.set({ bs: target });
     } else {
       const host = Game.players[0];
-      if (host && !host.sameTab && host.presence.sq === Game.sq) target = Math.max(target, clamp(+host.presence.bs || 0, 0, 4));
+      if (host && !host.sameTab && host.presence.sq === Game.sq) target = Math.max(target, clamp(+host.presence.bs || 0, 0, BOSS_MAX));
     }
     while ((Game.bossPhase || 0) < target) bossEnable((Game.bossPhase || 0) + 1);
+    bossAttacks(dt);
+  }
+  // rage: every 1.5 s one of the outer desk tiles shakes, then drops (the same tile on every screen)
+  if ((Game.bossPhase || 0) >= 5 && Game.running) {
+    const tiles = L.deskTiles || (L.deskTiles = L.crumbles.filter(q => q.def.deskTile && q.def.edgeTile));
+    const k = Math.floor(Game.lt / 1.5);
+    if (k !== B.lastCollapse) {
+      B.lastCollapse = k;
+      const idle = tiles.filter(q => q.cs === 'idle');
+      if (idle.length) {
+        const q = idle[Math.floor(rng(k * 131 + 7)() * idle.length)];
+        q.cs = 'shake'; q.ct = 1.1;
+        if (Game.screen === 'play' && Math.hypot(P.pos.x - q.base.x, P.pos.z - q.base.z) < 30) SFX.crumble();
+      }
+    }
   }
   // before the stamps, he just glares at whoever is closest
   if (B.tu && B.tu.off) B.tu.yaw = B.blob.root.rotation.y;
@@ -6031,6 +6091,189 @@ function bossTick(dt) {
     B.blob.root.rotation.y = dampAngle(B.blob.root.rotation.y, yaw, 2.5, dt);
   }
   B.tick(dt);
+}
+
+// ---------- binders raining on every player ----------
+Level.prototype.addRain = function (o) {
+  const L = this, root = new THREE.Group(); L.root.add(root);
+  const mats = ['#2A6F86', '#C8323E', '#C9A23A', '#1A4260', '#2F5A47'].map(c => L.pbr('binder' + c, { color: c, roughness: 0.55 }));
+  const paper = L.pbr('binderPages', { color: '#F4F1EA', roughness: 0.9 });
+  const shMat = new THREE.MeshBasicMaterial({ color: col('#1C1410'), transparent: true, opacity: 0, depthWrite: false }), shGeo = new THREE.CircleGeometry(1, 24);
+  shGeo.rotateX(-Math.PI / 2);
+  L.own.push(shMat, shGeo);
+  const pool = [], drops = [], T = 1.15;
+  const make = i => {
+    const m = new THREE.Group();
+    m.add(L.mesh(boxGeo(1.5, 0.42, 1.9), mats[i % mats.length], { cast: true }), L.mesh(boxGeo(1.3, 0.3, 1.86), paper, { p: [0.12, 0, 0] }));
+    const sh = new THREE.Mesh(shGeo, shMat.clone()); L.own.push(sh.material); sh.renderOrder = 3;
+    root.add(m, sh);
+    return { m, sh };
+  };
+  const rain = {
+    type: 'rain', o, drops, n: 0,
+    // three binders per player: one where they are heading, two around them
+    spawn(seed) {
+      if (this.off) return;
+      const R = rng(seed * 977 + 11), t0 = Game.lt, who = [];
+      if (Game.role !== 'def' && !Game.done && !P.frozen) who.push([P.pos.x, P.pos.y, P.pos.z, P.vel.x, P.vel.z]);
+      for (const r of Game.remotes.values()) if (r.st === 'play') who.push([r.rp.x, r.rp.y, r.rp.z, r.v[0], r.v[2]]);
+      for (const c of who) for (let i = 0; i < 3; i++) {
+        const x = i === 0 ? c[0] + c[3] * 0.9 : c[0] + (R() - 0.5) * 5, z = i === 0 ? c[2] + c[4] * 0.9 : c[2] + (R() - 0.5) * 5;
+        let gy = L.groundBelow(x, c[1] + 1.5, z); if (!isFinite(gy)) gy = c[1] - 8;
+        const v = pool.pop() || make(this.n++);
+        drops.push({ v, x, z, gy, t0: t0 + i * 0.22, spin: (R() - 0.5) * 6, impactT: -1, hit: false });
+      }
+    },
+    update(t) {
+      for (let i = drops.length - 1; i >= 0; i--) {
+        const d = drops[i], u = t - d.t0;
+        if (u < 0) { d.v.m.visible = d.v.sh.visible = false; continue; }
+        if (u > T + 0.8 || this.off) { d.v.m.visible = d.v.sh.visible = false; pool.push(d.v); drops.splice(i, 1); continue; }
+        d.v.m.visible = d.v.sh.visible = true;
+        const k = Math.min(1, u / T);
+        d.v.m.position.set(d.x, u < T ? d.gy + 0.21 + 16 * (1 - k * k) : d.gy + 0.21, d.z);
+        d.v.m.rotation.set(u < T ? u * d.spin : 0, d.spin, u < T ? u * d.spin * 0.6 : 0);
+        d.v.sh.position.set(d.x, d.gy + 0.02, d.z); d.v.sh.scale.setScalar(0.5 + 0.8 * k);
+        d.v.sh.material.opacity = u < T ? 0.15 + 0.35 * k : Math.max(0, 0.5 - (u - T));
+        if (u >= T && d.impactT < 0) {
+          d.impactT = t;
+          FX.burst(new THREE.Vector3(d.x, d.gy + 0.4, d.z), TOK.white, 8, 4, 0.09, 2, 0.5);
+          if (Game.screen === 'play' && Math.hypot(P.pos.x - d.x, P.pos.z - d.z) < 14) SFX.splat();
+        }
+      }
+    },
+    collide(Pl) {
+      let ev = null;
+      for (const d of drops) {
+        if (d.hit || d.impactT < 0 || Game.lt - d.impactT > 0.08) continue;
+        const dx = Pl.pos.x - d.x, dz = Pl.pos.z - d.z, l = Math.hypot(dx, dz);
+        if (l > 1.3 || Pl.pos.y < d.gy - 0.6 || Pl.pos.y > d.gy + 2.4) continue;
+        d.hit = true;
+        knock((l > 0.1 ? dx / l : 1) * 8, (l > 0.1 ? dz / l : 0) * 8, 5, 0.5);
+        Pl.stunT = Math.max(Pl.stunT, 0.4);
+        markHit('f:rain');
+        ev = { hit: 'sweep' };
+      }
+      return ev;
+    }
+  };
+  L.obstacles.push(rain); L.rain = rain;
+  if (o.mech !== false) L.addMech({ kind: 'rain', label: o.label || 'Pluie', pos: new THREE.Vector3(0, 0, 0), follow: () => bossFollowPos(2.8), cd: o.cd || 6, trigger() { rain.spawn(1 + Math.round(Game.lt * 10)); } });
+  return rain;
+};
+
+// ---------- a giant rubber stamp crushing one platform ----------
+Level.prototype.addStamp = function (o) {
+  const L = this, M = L.theme.mats(L), w = o.w || 4, d = o.d || w, H = 2.2;
+  const root = new THREE.Group(); L.root.add(root);
+  const body = new THREE.Group(); body.visible = false; root.add(body);
+  body.add(L.mesh(boxGeo(w, 0.5, d), L.pbr('stampRubber', { color: '#C8323E', roughness: 0.6 }), { p: [0, 0.25, 0], cast: true }));
+  body.add(L.mesh(slabGeo(w * 0.92, 1.5, d * 0.92, 0.15, 0.05), M.laminate, { p: [0, 1.25, 0], cast: true }));
+  body.add(L.mesh(cylGeo(0.35, 0.45, 2.6, 14), M.dark, { p: [0, 3.3, 0], cast: true }));
+  body.add(L.mesh(sphGeo(0.95, 18, 14), M.dark, { p: [0, 5, 0], s: [1, 0.8, 1], cast: true }));
+  const markMat = new THREE.MeshBasicMaterial({ color: col(TOK.vivid), transparent: true, opacity: 0, depthWrite: false, toneMapped: false });
+  const markGeo = new THREE.PlaneGeometry(w, d); markGeo.rotateX(-Math.PI / 2);
+  L.own.push(markMat, markGeo);
+  const mark = new THREE.Mesh(markGeo, markMat); mark.position.set(o.x, o.top + 0.04, o.z); mark.renderOrder = 3; root.add(mark);
+  const solid = L.solidBox(o.x - w / 2, o.top, o.z - d / 2, o.x + w / 2, o.top + H, o.z + d / 2, false);
+  const st = {
+    type: 'stamp', o, fireAt: -99, impactT: -1, hitAt: -1, solid,
+    busy(t) { return t - this.fireAt < 3.4; },
+    trigger() { if (this.off || this.busy(Game.lt)) return; this.fireAt = Game.lt; },
+    update(t) {
+      const u = t - this.fireAt;
+      if (this.off || u < 0 || u > 3.4) { body.visible = false; markMat.opacity = 0; solid.active = false; return; }
+      body.visible = true;
+      let y;
+      if (u < 1.1) { const k = u / 1.1; y = o.top + 15 - 9 * (1 - (1 - k) * (1 - k)); markMat.opacity = 0.2 + 0.35 * (Math.floor(u * 8) % 2); }
+      else if (u < 1.2) { y = o.top + 6 * (1 - (u - 1.1) / 0.1); markMat.opacity = 0.6; }
+      else if (u < 2.2) { y = o.top; markMat.opacity = Math.max(0, 0.6 - (u - 1.2)); }
+      else { const k = (u - 2.2) / 1.2; y = o.top + 15 * k * k; markMat.opacity = 0; }
+      body.position.set(o.x, y, o.z);
+      solid.active = u >= 1.2 && u < 2.2;
+      if (u >= 1.2 && this.impactT < this.fireAt) {
+        this.impactT = t;
+        FX.burst(new THREE.Vector3(o.x, o.top + 0.3, o.z), TOK.white, 18, 7, 0.12, 2, 0.6);
+        if (Game.screen === 'play' && Math.hypot(P.pos.x - o.x, P.pos.z - o.z) < 30) SFX.slam();
+      }
+    },
+    collide(Pl) {
+      if (this.impactT < this.fireAt || Game.lt - this.impactT > 0.08 || this.hitAt === this.fireAt) return null;
+      const hx = w / 2 + PH.r, hz = d / 2 + PH.r, dx = Pl.pos.x - o.x, dz = Pl.pos.z - o.z;
+      if (Math.abs(dx) > hx || Math.abs(dz) > hz || Pl.pos.y < o.top - 0.4 || Pl.pos.y > o.top + H + 0.2) return null;
+      this.hitAt = this.fireAt;
+      // squashed and spat out by the nearest side
+      const ex = hx - Math.abs(dx), ez = hz - Math.abs(dz);
+      let nx = 0, nz = 0;
+      if (ex < ez) { nx = Math.sign(dx) || 1; Pl.pos.x = o.x + nx * (hx + 0.03); } else { nz = Math.sign(dz) || 1; Pl.pos.z = o.z + nz * (hz + 0.03); }
+      Pl.pos.y = Math.max(Pl.pos.y, o.top + 0.02);
+      knock(nx * 12, nz * 12, 6, 0.8);
+      Pl.stunT = Math.max(Pl.stunT, 0.7);
+      if (P.blob) { P.blob.impulse(-16); P.blob.jiggle(18); }
+      markHit('f:stamp');
+      return { hit: 'sweep' };
+    }
+  };
+  L.obstacles.push(st);
+  (L.stamps || (L.stamps = [])).push(st);
+  if (o.mech !== false) L.addMech({ kind: 'stamp', label: o.label || 'Tampon géant', pos: new THREE.Vector3(o.x, o.top + 4.5, o.z), cd: o.cd || 7, trigger() { st.trigger(); } });
+  return st;
+};
+
+// Défense: the stamp and binder markers float next to the leading runner so the director can use them
+function bossFollowPos(dx) {
+  let lead = null, best = -1;
+  const L = Game.level;
+  for (const r of Game.remotes.values()) { if (r.st !== 'play') continue; const pr = L.progress(r.rp.x, r.rp.y, r.rp.z); if (pr > best) { best = pr; lead = r; } }
+  return lead ? new THREE.Vector3(lead.rp.x + dx, lead.rp.y + 3.4, lead.rp.z) : null;
+}
+
+// ---------- Course / Coop: the host decides when the director attacks; everyone plays it ----------
+function bossEmit(kind, a) {
+  Game.bkN = (Game.bkN || 0) + 1;
+  Game.bkLog = (Game.bkLog || []).concat([[Game.bkN, kind, a]]).slice(-6);
+  Net.set({ bk: Game.bkLog });
+  bossExec(kind, a);
+}
+function bossExec(kind, a) {
+  const L = Game.level;
+  if (kind === 'r' && L.rain) L.rain.spawn(a);
+  else if (kind === 'g' && L.stamps && L.stamps[a]) L.stamps[a].trigger();
+}
+function bossStampTarget(L) {
+  const who = [];
+  if (Game.role !== 'def' && !Game.done) who.push(P.pos);
+  for (const r of Game.remotes.values()) if (r.st === 'play') who.push(r.rp);
+  for (let tries = 0; tries < 3 && who.length; tries++) {
+    const c = who[Math.floor(Math.random() * who.length)];
+    let best = -1, bd = 7;
+    L.stamps.forEach((st, i) => { if (st.off || st.busy(Game.lt) || Math.abs(c.y - st.o.top) > 2.5) return; const d = Math.hypot(c.x - st.o.x, c.z - st.o.z); if (d < bd) { bd = d; best = i; } });
+    if (best >= 0) return best;
+  }
+  return -1;
+}
+function bossAttacks(dt) {
+  const L = Game.level, ph = Game.bossPhase || 0;
+  if (Game.isHost) {
+    if (ph >= 2 && L.rain && !L.rain.off) {
+      Game.rainT = (Game.rainT == null ? 2 : Game.rainT) - dt;
+      if (Game.rainT <= 0) { Game.rainT = ph >= 5 ? 3.2 : ph >= 4 ? 4.2 : 5.2; bossEmit('r', 1 + Math.floor(Math.random() * 99999)); }
+    }
+    if (ph >= 3 && L.stamps && L.stamps.length) {
+      Game.stampT = (Game.stampT == null ? 2 : Game.stampT) - dt;
+      if (Game.stampT <= 0) { const i = bossStampTarget(L); Game.stampT = i >= 0 ? (ph >= 5 ? 3 : 4.4) : 0.6; if (i >= 0) bossEmit('g', i); }
+    }
+    return;
+  }
+  const host = Game.players[0];
+  if (!host || host.sameTab || host.presence.sq !== Game.sq || !Array.isArray(host.presence.bk)) return;
+  let seen = Game.bkSeen || 0, top = seen;
+  for (const e of host.presence.bk) {
+    if (!Array.isArray(e) || !(+e[0] > seen)) continue;
+    top = Math.max(top, +e[0]);
+    bossExec(String(e[1]), Math.floor(+e[2] || 0));
+  }
+  Game.bkSeen = top;
 }
 
 // ===================== modes: level lists, Ring rounds, Défense role =====================
@@ -6176,6 +6419,7 @@ function defenderTick(dt, now) {
   for (const mk of Game.defMarks) {
     mk.lab.sprite.visible = !mk.m.off;
     if (mk.m.off) continue;
+    if (mk.m.follow) { const fp = mk.m.follow(); if (fp) { mk.m.pos.copy(fp); mk.lab.sprite.position.copy(fp); } }
     const left = mk.m.readyAt - tnow, locked = mk.m.avail && !mk.m.avail();
     const st = locked ? 'locked' : left > 0 ? 'cd' + Math.ceil(left) : 'ready';
     const hovered = mk.m.id === hov;
@@ -6703,7 +6947,7 @@ function startLevel(lv, md, sq) {
   Game.role = md === 'defense' && Game.gs && Game.gs.df && Game.gs.df === mePeer ? 'def' : 'run';
   const gs0 = Game.gs || {};
   const L = setLevel(di, md, { seed: gs0.seed, chaos: md === 'ring' && gs0.hd });
-  Game.bossPhase = 0;
+  Game.bossPhase = 0; Game.bkN = 0; Game.bkLog = []; Game.bkSeen = 0; Game.rainT = null; Game.stampT = null;
   Game.myGems = new Set(); Game.union = new Set(); Game.checkIdx = -1; Game.done = false; Game.ft = null;
   Game.obs = new Set(); Game.obsU = new Set(); Game.obsKnown = new Set(); Game.ballSendT = 0; Game.lifts = 0; Game.boosts = 0; Game.missionKey = '';
   P.pushT = 0; Game.lastMissing = null;
@@ -6727,7 +6971,7 @@ function startLevel(lv, md, sq) {
   Game.out = false; Game.outAt = 0; Game.defUses = 0; Game.foeSendT = 0;
   if (L.def.ring) ringSetup(L);
   defenseSetup(L);
-  Net.set({ st: Game.role === 'def' ? 'def' : 'play', sq, lv, g: '', ft: null, rd: 0, fl: 0, bp: 0, ob: '', pb: 0, lf: 0, bl: null, gb: null, hb: null, ko: null, tw: 0, ot: null, dfl: null, en: null, bs: 0, x: r2(P.pos.x), y: r2(P.pos.y), z: r2(P.pos.z), ry: r2(P.facing), vy: 0, gr: 1, sp: 0, dv: 0 });
+  Net.set({ st: Game.role === 'def' ? 'def' : 'play', sq, lv, g: '', ft: null, rd: 0, fl: 0, bp: 0, ob: '', pb: 0, lf: 0, bl: null, gb: null, hb: null, ko: null, tw: 0, ot: null, dfl: null, en: null, bs: 0, bk: null, x: r2(P.pos.x), y: r2(P.pos.y), z: r2(P.pos.z), ry: r2(P.facing), vy: 0, gr: 1, sp: 0, dv: 0 });
   showScreen('play');
   if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
   const def = L.def;
