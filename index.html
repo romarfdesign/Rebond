@@ -380,7 +380,7 @@ kbd{font:600 12px/1 var(--f-text);padding:6px 9px;border-radius:8px;background:r
         <p class="hint" id="level-hint"></p>
       </div>
       <div class="setting" id="set-diff" hidden>
-        <span class="label">Difficulté du ring</span>
+        <span class="label" id="lbl-diff">Difficulté du ring</span>
         <div class="seg" id="seg-diff">
           <button type="button" data-v="0" aria-pressed="true">Normal</button>
           <button type="button" data-v="1" aria-pressed="false">Chaos</button>
@@ -496,7 +496,9 @@ const PCOLOR_NAMES = ['Orange', 'Cyan', 'Jaune', 'Rose', 'Vert', 'Violet'];
 // Physics tuning (metres, seconds)
 const PH = {
   g: 32, jump: 11.5, djump: 10, cutV: 4.5, speed: 8, accG: 70, fric: 48, accA: 26,
-  coyote: 0.1, buffer: 0.13, maxFall: 30, bounce: 19, r: 0.38, H: 1.0, step: 0.32, dive: 13, iceAcc: 11, iceFric: 1.6, boost: 17.5
+  coyote: 0.1, buffer: 0.13, maxFall: 30, bounce: 19, r: 0.38, H: 1.0, step: 0.32, dive: 13, iceAcc: 11, iceFric: 1.6, boost: 17.5,
+  // sticky ground (glue, mud, powder snow): slower and a weaker jump; boosters and launch pads keep momentum
+  slowSpeed: 0.42, slowJump: 0.78, boosterSpeed: 16, boosterT: 1, boostKeep: 0.08
 };
 const MAX_PLAYERS = 4;
 const CLOSE_MS = 45000;
@@ -974,8 +976,12 @@ const TUNES = {
   arcade: th => {
     const v = { bureau: 0, halloween: 1, noel: 2, parc: 3 }[th] || 0;
     return {
-      bpm: 128, swing: 0, fx: 0.2, tr: [0, -2, 2, 5][v], prog: ['Cm', 'Ab', 'Eb', 'Bb'],
+      bpm: I => 128 + I * 10, swing: 0, fx: 0.2, tr: I => [0, -2, 2, 5][v] + (I >= 2 ? 1 : 0), prog: ['Cm', 'Ab', 'Eb', 'Bb'],
       parts: [
+        // Chaos and Insane: toms, then an organ stab and a crash on every bar
+        { k: 'drum', d: 'tom', vol: 0.2, rh: '..x...x..x.x..xx', f: 120, minI: 1 },
+        { k: 'chord', inst: 'organ', vol: 0.05, oct: 3, rh: 'x.....x.....x...', len: 1, minI: 2 },
+        { k: 'drum', d: 'crash', vol: 0.22, rh: 'x...............', minI: 2 },
         { k: 'arp', inst: 'chip', vol: 0.06, oct: 4, rh: 'xxxxxxxxxxxxxxxx', order: [0, 1, 2, 3] },
         { k: 'bass', inst: 'bass', vol: 0.4, oct: 2, rh: 'x.x.x.x.x.x.x.x.', deg: 'r r o r' },
         { k: 'drum', d: 'kick', vol: 0.45, rh: 'x...x...x...x...' },
@@ -1368,6 +1374,78 @@ function makeSky() {
   return m;
 }
 
+// sticky puddles: glue in the office, swamp slime at Halloween, powder snow at Christmas, mud in the park
+const SLOW_LOOK = {
+  bureau: { c: '#7CCAD6', e: '#DDE6EE', o: 0.9, r: 0.06, blobs: '#C9EEF3', glow: '#5FB8C6' },
+  direction: { c: '#7CCAD6', e: '#DDE6EE', o: 0.9, r: 0.06, blobs: '#C9EEF3', glow: '#5FB8C6' },
+  halloween: { c: '#3E5A2A', e: '#7EBD4B', o: 0.95, r: 0.2, blobs: '#9CD46A', glow: '#7EBD4B' },
+  noel: { c: '#C4DCF2', e: '#DCEBF7', o: 1, r: 0.9, blobs: '#F4FAFF', glow: '#9CC6EC' },
+  parc: { c: '#5A3B22', e: '#3A2414', o: 1, r: 0.25, blobs: '#6E4A2C' }
+};
+function slowPatch(L, p, h) {
+  const k = SLOW_LOOK[L.def.theme] || SLOW_LOOK.bureau, g = new THREE.Group();
+  const m = L.pbr('slow' + L.def.theme, { color: k.c, roughness: k.r, metalness: 0, transparent: k.o < 1, opacity: k.o, emissive: k.glow || '#000000', emissiveIntensity: k.glow ? 0.25 : 0 });
+  const w = p.w * (p.overlay ? 1 : 0.86), d = p.d * (p.overlay ? 1 : 0.86), th = L.def.theme === 'noel' ? 0.22 : 0.07;
+  g.add(L.mesh(slabGeo(w, th, d, Math.min(w, d) * 0.35, Math.min(th * 0.45, 0.06)), m, { p: [0, h / 2 + th / 2 - 0.01, 0], receive: true }));
+  // a few drops / lumps so it reads as something you would rather not step in
+  const R = rng(Math.round(p.x * 17 + p.z * 31 + p.top * 7)), bm = L.pbr('slowB' + L.def.theme, { color: k.blobs, roughness: k.r, transparent: k.o < 1, opacity: k.o, emissive: k.glow || '#000000', emissiveIntensity: k.glow ? 0.35 : 0 });
+  const n = Math.round(clamp(w * d / 3, 3, 10));
+  for (let i = 0; i < n; i++) g.add(L.mesh(sphGeo(1, 12, 8), bm, { p: [(R() - 0.5) * w * 0.7, h / 2 + th - 0.02, (R() - 0.5) * d * 0.7], s: [0.18 + R() * 0.25, 0.06 + R() * 0.08, 0.18 + R() * 0.25] }));
+  return g;
+}
+// launch pads wear a big arrow showing where they throw you
+function launchArrow(L, b) {
+  const g = new THREE.Group(), m = L.basic('launchArrow', { color: TOK.vivid, toneMapped: false, transparent: true, opacity: 0.9 });
+  const sh = new THREE.Shape(); sh.moveTo(-0.28, -0.7); sh.lineTo(0.28, -0.7); sh.lineTo(0.28, 0.05); sh.lineTo(0.6, 0.05); sh.lineTo(0, 0.85); sh.lineTo(-0.6, 0.05); sh.lineTo(-0.28, 0.05); sh.closePath();
+  const geo = L.ownGeo(new THREE.ShapeGeometry(sh)); geo.rotateX(-Math.PI / 2);
+  const a = L.mesh(geo, m, { p: [0, 0.3, 0], receive: false });
+  a.rotation.y = Math.atan2(b.launch[0], b.launch[1]) + Math.PI;
+  g.add(a);
+  const ring = L.mesh(L.ownGeo(new THREE.TorusGeometry(1.05, 0.06, 6, 40)), m, { p: [0, 0.05, 0], r: [Math.PI / 2, 0, 0] });
+  g.add(ring);
+  L.anims.push((dt, t) => { a.position.y = 0.3 + Math.sin(t * 5) * 0.08; });
+  return g;
+}
+// speed pad: a panel of running chevrons that throws you forward
+function boosterTex(L) {
+  return L.tex('boosterTex', [128, 256], (x, w, hh) => {
+    x.fillStyle = '#16345E'; x.fillRect(0, 0, w, hh);
+    x.strokeStyle = '#FF6633'; x.lineWidth = 18; x.lineCap = 'round'; x.lineJoin = 'round';
+    for (let i = 0; i < 2; i++) { const y = 40 + i * 128; x.beginPath(); x.moveTo(20, y + 50); x.lineTo(64, y); x.lineTo(108, y + 50); x.stroke(); }
+  }, { repeat: [1, 1] });
+}
+// a speed pad flat on the floor: you keep running, much faster, along its arrows (test/sim.js uses it too)
+function boosterHit(ob, Pl, h) {
+  if (ob.cd > 0) { ob.cd -= h; return null; }
+  const o = ob.o, ry = o.ry || 0, w = o.w || 1.8, d = o.d || 2.6;
+  const rx = Pl.pos.x - o.x, rz = Pl.pos.z - o.z;
+  const u = rx * Math.cos(ry) - rz * Math.sin(ry), v = rx * Math.sin(ry) + rz * Math.cos(ry);
+  if (Math.abs(u) > w / 2 || Math.abs(v) > d / 2 || Math.abs(Pl.pos.y - o.top) > 0.25) return null;
+  const sp = o.speed || PH.boosterSpeed;
+  Pl.vel.x = Math.sin(ry) * sp; Pl.vel.z = Math.cos(ry) * sp;
+  Pl.boostT = PH.boosterT; Pl.boostLand = false; Pl.diving = false;
+  ob.cd = 0.35;
+  return { hit: 'boost' };
+}
+function addBooster(L, o) {
+  const w = o.w || 1.8, d = o.d || 2.6, ry = o.ry || 0;
+  const tex = boosterTex(L).clone(); tex.needsUpdate = true; tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(1, d / 1.6);
+  L.own.push(tex);
+  const m = new THREE.MeshBasicMaterial({ map: tex, toneMapped: false }); L.own.push(m);
+  const g = new THREE.Group(); g.position.set(o.x, o.top, o.z); g.rotation.y = ry;
+  g.add(L.mesh(boxGeo(w, 0.05, d), [L.basic('boostSide', { color: '#0F2C46' }), L.basic('boostSide', {}), m, L.basic('boostSide', {}), L.basic('boostSide', {}), L.basic('boostSide', {})], { p: [0, 0.025, 0], receive: false }));
+  const gl = L.glow(TOK.vivid, Math.max(w, d) * 1.2, 0.25); gl.position.y = 0.2; g.add(gl);
+  L.root.add(g);
+  L.anims.push((dt, t) => { tex.offset.y = -t * 1.6; });
+  const ob = {
+    type: 'booster', o, cd: 0,
+    update() {},
+    collide(Pl, h) { return boosterHit(this, Pl, h); }
+  };
+  L.obstacles.push(ob);
+  return ob;
+}
+
 // four thin posts and a rim around a trapdoor
 function trapFrame(L, p, h) {
   const g = new THREE.Group(), m = L.pbr('trapFrame', { color: '#2E3238', metalness: 0.6, roughness: 0.45 });
@@ -1383,8 +1461,9 @@ class Level {
   constructor(def, index, opts) {
     opts = opts || {};
     const diff = clamp(opts.diff | 0, 0, 2);
-    this.chaos = diff >= 1 && !!def.hardFrom;
-    this.insane = diff >= 2 && !!def.insaneFrom;
+    // the random course is drawn for its difficulty (gen.js); the other levels add their .hard()/.insane() parts
+    this.chaos = def.gen ? def.diff >= 1 : diff >= 1 && !!def.hardFrom;
+    this.insane = def.gen ? def.diff >= 2 : diff >= 2 && !!def.insaneFrom;
     def = chaosDef(def, diff);
     this.def = def; this.index = index; this.theme = THEMES[def.theme] || THEMES.bureau;
     this.phases = [];
@@ -1412,6 +1491,7 @@ class Level {
       else if (o.type === 'wave') this.addWave(o);
       else if (o.type === 'rain') this.addRain(o);
       else if (o.type === 'stamp') this.addStamp(o);
+      else if (o.type === 'booster') addBooster(this, o);
       else if (o.type === 'foe' && (!o.solo || opts.solo)) this.addFoe(o);
     });
     this.addGizmos();
@@ -1496,7 +1576,9 @@ class Level {
   addPlat(p, idx) {
     const h = p.h || 1, th = this.theme;
     const grp = new THREE.Group();
-    grp.add(th.platform(this, p, h, idx));
+    // an overlay is only a sticky puddle lying on something else
+    if (!p.overlay) grp.add(th.platform(this, p, h, idx));
+    if (p.slow) grp.add(slowPatch(this, p, h));
     grp.position.set(p.x, p.top - h / 2, p.z);
     this.root.add(grp);
     // platforms that vanish never stand on a column (it would stay floating in the air without them);
@@ -1505,7 +1587,7 @@ class Level {
     else if (!p.move && !p.piston && !p.blink && (p.kind !== 'crumble' || p.branch) && !p.nosup && th.support) { const sup = th.support(this, p, h, idx); if (sup) this.root.add(sup); }
     if (p.piston && th.pistonBase) this.root.add(th.pistonBase(this, p, h));
     const s = {
-      kind: p.kind || 'solid', grp, hw: p.w / 2, hh: h / 2, hd: p.d / 2, ice: !!p.ice,
+      kind: p.kind || 'solid', grp, hw: p.w / 2, hh: h / 2, hd: p.d / 2, ice: !!p.ice, slow: !!p.slow,
       base: new THREE.Vector3(p.x, p.top - h / 2, p.z), min: [0, 0, 0], max: [0, 0, 0],
       active: true, dx: 0, dy: 0, dz: 0, move: p.move || (p.piston ? Object.assign({ type: 'piston', fireAt: -99 }, p.piston) : null), route: p.route !== false, def: p, oneway: !!p.oneway
     };
@@ -1531,7 +1613,8 @@ class Level {
     grp.add(this.theme.pad(this));
     grp.position.set(b.x, b.top, b.z);
     this.root.add(grp);
-    const s = { kind: 'bounce', grp, hw: 0.8, hh: 0.13, hd: 0.8, base: new THREE.Vector3(b.x, b.top + 0.13, b.z), min: [0, 0, 0], max: [0, 0, 0], active: true, dx: 0, dy: 0, dz: 0, route: false, anim: 0, solo: !!b.solo };
+    if (b.launch) grp.add(launchArrow(this, b));
+    const s = { kind: 'bounce', grp, hw: 0.8, hh: 0.13, hd: 0.8, base: new THREE.Vector3(b.x, b.top + 0.13, b.z), min: [0, 0, 0], max: [0, 0, 0], active: true, dx: 0, dy: 0, dz: 0, route: false, anim: 0, solo: !!b.solo, launch: b.launch || null };
     s.min = [b.x - 0.8, b.top, b.z - 0.8]; s.max = [b.x + 0.8, b.top + 0.26, b.z + 0.8];
     this.solids.push(s); this.pads.push(s);
   }
@@ -3912,7 +3995,9 @@ function fanCage(L, r, ringMat, bladeMat, hubMat) {
 function LB(theme, name, sub) {
   const d = { theme, name, sub, plats: [], pads: [], gems: [], checks: [], deco: [], obstacles: [], start: null, finish: null };
   // items added after .phase(k) sleep until the boss reaches phase k; after .hard() they only exist in Chaos
-  const put = (arr, o) => { if (d._ph) o.phase = d._ph; arr.push(o); return o; };
+  // .offset(dz) moves everything added afterwards along z (to open up a gap without renumbering a level)
+  const oz = o => { if (d._dz) { if (typeof o.z === 'number') o.z = r2(o.z + d._dz); if (o.region) o.region = [o.region[0], o.region[1], r2(o.region[2] + d._dz), r2(o.region[3] + d._dz)]; } return o; };
+  const put = (arr, o) => { oz(o); if (d._ph) o.phase = d._ph; arr.push(o); return o; };
   const api = {
     start(x, top, z, w, dd) { const p = { x, top, z, w, d: dd }; d.plats.push(p); d.start = p; return api; },
     p(x, top, z, w, dd, o) { put(d.plats, Object.assign({ x, top, z, w, d: dd }, o || {})); return api; },
@@ -3926,11 +4011,12 @@ function LB(theme, name, sub) {
     prop(kind, x, top, z, w, dd, o) { const base = (o && o.base) || 0; put(d.plats, Object.assign({ x, top, z, w, d: dd, h: top - base, prop: kind, route: false, nosup: true }, o || {})); return api; },
     gz(o) { (d.gizmos || (d.gizmos = [])).push(o); return api; },
     mission(list) { d.mission = list; d.coopOnly = true; return api; },
-    gem(x, y, z) { d.gems.push([x, y, z]); return api; },
-    check(x, top, z) { d.checks.push({ x, top, z }); return api; },
-    finish(x, top, z, w, dd) { const p = { x, top, z, w, d: dd }; d.plats.push(p); d.finish = p; return api; },
-    sign(x, y, z, text) { d.deco.push({ type: 'sign', x, y, z, text }); return api; },
-    deco(o) { d.deco.push(o); return api; },
+    gem(x, y, z) { d.gems.push([x, y, r2(z + (d._dz || 0))]); return api; },
+    check(x, top, z) { d.checks.push(oz({ x, top, z })); return api; },
+    finish(x, top, z, w, dd) { const p = oz({ x, top, z, w, d: dd }); d.plats.push(p); d.finish = p; return api; },
+    sign(x, y, z, text) { d.deco.push(oz({ type: 'sign', x, y, z, text })); return api; },
+    deco(o) { d.deco.push(oz(o)); return api; },
+    offset(dz) { d._dz = r2((d._dz || 0) + dz); return api; },
     sweep(x, top, z, len, w, ph, o) { put(d.obstacles, Object.assign({ type: 'sweep', x, top, z, len, w, ph: ph || 0 }, o || {})); return api; },
     bumper(x, top, z, r) { put(d.obstacles, { type: 'bumper', x, top, z, r: r || 0.7 }); return api; },
     // fan: centre of its face, wind direction, reach, radius, wind speed (m/s); optional on/off pattern
@@ -3939,6 +4025,10 @@ function LB(theme, name, sub) {
     // door: a wall `w` wide and `h` high across x (axis 'x') or z; closes on a pattern or for the defender
     door(x, top, z, w, h, axis, o) { put(d.obstacles, Object.assign({ type: 'door', x, top, z, w, h, axis }, o || {})); return api; },
     foe(kind, x, top, z, region, o) { put(d.obstacles, Object.assign({ type: 'foe', kind, x, top, z, region }, o || {})); return api; },
+    // sticky puddle lying on a platform (glue, mud, powder snow depending on the decor)
+    goo(x, top, z, w, dd, o) { put(d.plats, Object.assign({ x, top: top + 0.08, z, w, d: dd, h: 0.08, slow: 1, overlay: true, route: false, nosup: true }, o || {})); return api; },
+    // speed pad pointing at `ry` (0 = +z, Math.PI = forward along -z)
+    booster(x, top, z, ry, o) { put(d.obstacles, Object.assign({ type: 'booster', x, top, z, ry }, o || {})); return api; },
     // the director's attacks: binders raining on every player, a giant stamp crushing one zone
     rain(o) { put(d.obstacles, Object.assign({ type: 'rain' }, o || {})); return api; },
     stamp(x, top, z, w, dd, o) { put(d.obstacles, Object.assign({ type: 'stamp', x, top, z, w, d: dd }, o || {})); return api; },
@@ -3949,6 +4039,8 @@ function LB(theme, name, sub) {
     // low wall to hide behind (blocks turret shots)
     cover(x, top, z, w, dd, h) { put(d.plats, { x, top: top + h, z, w, d: dd, h, prop: 'cover', base: top, route: false, nosup: true }); return api; },
     phase(k) { d._ph = k || 0; return api; },
+    // Ring: glue on strips of ring k (they still drop with the ring)
+    gooStrips(k, sides) { ringGoo(api, k, sides); return api; },
     boss(o) { d.boss = o; return api; },
     hard() { d.hardFrom = { plats: d.plats.length, obstacles: d.obstacles.length, pads: d.pads.length, gems: d.gems.length }; return api; },
     insane() { d.insaneFrom = { plats: d.plats.length, obstacles: d.obstacles.length, pads: d.pads.length, gems: d.gems.length }; return api; },
@@ -3982,20 +4074,45 @@ function chaosDef(def, diff) {
   if (!h) return def;
   return Object.assign({}, def, { plats: def.plats.slice(0, h.plats), obstacles: def.obstacles.slice(0, h.obstacles), pads: def.pads.slice(0, h.pads), gems: def.gems.slice(0, h.gems) });
 }
+// glue on some strips of a ring (it drops with the strip): ring k, sides 0 north 1 south 2 west 3 east
+function ringGoo(b, k, sides) {
+  const R = b.def.ring, oh = R.half - k * R.step, ih = oh - R.step, m = (oh + ih) / 2;
+  const rect = [[0, -m, 2 * oh, R.step], [0, m, 2 * oh, R.step], [-m, 0, R.step, 2 * ih], [m, 0, R.step, 2 * ih]];
+  for (const sd of sides) { const [x, z, w, dd] = rect[sd]; b.goo(R.cx + x, R.top, R.cz + z, w - 0.2, dd - 0.2, { kind: 'crumble', noTouch: true, ringTile: k }); }
+  return b;
+}
+// Insane: speed pads on the core that throw you towards the edge
+function ringBoosters(b) {
+  const R = b.def.ring;
+  for (const [dx, dz, ry] of [[2.5, 0, Math.PI / 2], [-2.5, 0, -Math.PI / 2], [0, 2.5, 0], [0, -2.5, Math.PI]]) b.booster(R.cx + dx, R.top, R.cz + dz, ry, { speed: 13, w: 1.4, d: 2 });
+  return b;
+}
 // Insane: four giant stamps around the core and binders raining on everyone (the host calls them out)
 function insaneKit(b, cx, top, cz) {
+  ringGoo(b, 0, [2, 3]); ringBoosters(b);
   b.rain({ mech: false });
   for (const [sx, sz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) b.stamp(cx + sx * 4.6, top, cz + sz * 4.6, 3.4, 3.4, { mech: false });
   return b;
 }
 
+// launch pad velocity [vx, vz, vy] that lands on (tx, ttop, tz) from a pad at (x, top, z), leaving it at `vy`
+// (the carry of a launch pad only slowly gives way to air control: see PH.boostKeep)
+function launchTo(x, top, z, tx, ttop, tz, vy) {
+  const dy = ttop - (top + 0.26), t = (vy + Math.sqrt(Math.max(0, vy * vy - 2 * PH.g * dy))) / PH.g;
+  const D = Math.hypot(tx - x, tz - z) || 1, v = D / t + PH.accA * PH.boostKeep * t / 2;
+  return [r2((tx - x) / D * v), r2((tz - z) / D * v), vy];
+}
 function level1() {
   const b = LB('bureau', 'Le bureau', 'Piles de cartons, armoires et drone de livraison');
   b.start(0, 0, 0, 10, 8)
+    // a launch pad on the starting desk throws you to a bonus shelf
+    .pad(3.6, 0, -2.2, { launch: launchTo(3.6, 0, -2.2, 10, 4, -11.6, 19) })
+    .p(10, 4, -12, 4, 4, { route: false }).gem(10, 4.9, -12).gem(10, 5.9, -12)
     .p(0, 0, -9, 6, 6).gem(0, 0.9, -9)
     .p(0, 0.8, -17, 5, 5, { trap: true }).gem(0, 1.7, -17)
     .gem(0, 3.2, -21)
-    .p(0, 1.6, -25, 5, 5)
+    .p(0, 1.6, -25, 5, 5, { slow: 1 })
+    .sign(-2.8, 4.2, -24, 'Flaque de colle : ça ralentit')
     .p(5, 1.6, -32, 4, 4, { trap: true }).gem(5, 2.5, -32)
     .p(0, 1.6, -39, 4, 4).gem(0, 2.5, -39)
     .p(-8, 2.4, -36, 3, 3, { route: false }).gem(-8, 3.3, -36)
@@ -4014,10 +4131,10 @@ function level1() {
     .p(0, 6.5, -75, 9, 8).sweep(0, 6.5, -75, 8, 1.3).gem(3, 7.6, -77.5)
     .sign(0, 9.4, -70.6, 'Saute par-dessus la barre')
     .p(-5, 7.5, -82.5, 4, 4).gem(-5, 8.4, -82.5)
-    .p(-5, 8.7, -88, 4, 4).gem(-5, 9.6, -88)
+    .p(-5, 8.7, -89.5, 4, 4).gem(-5, 9.6, -89.5)
     // new: the printer shoots paper balls; hide behind the partitions
     .p(6.5, 8.2, -86, 3, 3, { route: false }).turret(6.5, 8.2, -86, { rate: 3, range: 15 })
-    .cover(-3.4, 7.5, -82.5, 0.3, 2.6, 1.6).cover(-3.4, 8.7, -88.6, 0.3, 2.4, 1.6)
+    .cover(-3.4, 7.5, -82.5, 0.3, 2.6, 1.6).cover(-3.4, 8.7, -90.1, 0.3, 2.4, 1.6)
     .sign(-1, 11.4, -84, 'Imprimante en colère : cache-toi derrière les cloisons')
     .p(0, 9.5, -95, 5, 4)
     .sign(0, 12.3, -94.2, 'Double saut : Espace une 2e fois en l\'air')
@@ -4032,10 +4149,11 @@ function level1() {
 function level2() {
   const b = LB('halloween', 'Nuit d\'Halloween', 'Planches pourries, cercueils volants et citrouilles');
   b.start(0, 0, 0, 10, 8)
-    .c(0, 0, -8, 3, 3).gem(0, 0.9, -8)
-    .c(0, 0.5, -13, 3, 3)
-    .c(0, 1, -18, 3, 3).gem(0, 1.9, -18)
+    .c(0, 0, -8.4, 2.6, 2.6).gem(0, 0.9, -8.4)
+    .c(0, 0.5, -14.8, 2.6, 2.6)
+    .c(0, 1, -20.9, 2.6, 2.6).gem(0, 1.9, -20.9)
     .sign(-2.6, 3.4, -12, 'Les planches pourries cèdent')
+    .offset(-4)
     .p(0, 1, -25, 8, 6).sweep(0, 1, -25, 7, 1.6).gem(3, 2, -27.2)
     .p(-7, 1.6, -25, 3, 3, { route: false }).gem(-7, 2.5, -25)
     .m(0, 1, -34, 4, 4, { ax: 'x', amp: 5, per: 5 }).gem(0, 1.9, -34)
@@ -4044,7 +4162,7 @@ function level2() {
     .door(0, 1, -45.3, 6, 3.2, 'x', { on: 2.2, off: 2.8 })
     .sign(-2.4, 4.8, -44.6, 'La herse se relève : attends ton tour')
     .m(0, 4, -51, 4, 4, { ax: 'y', amp: 3, per: 6 }).gem(0, 4.9, -51)
-    .p(0, 7, -59, 8, 7).sweep(0, 7, -59, 7, -1.4).gem(-2.6, 8, -61.2)
+    .p(0, 7, -59, 8, 7, { slow: 1 }).sweep(0, 7, -59, 7, -1.4).gem(-2.6, 8, -61.2)
     // new: a ghost haunts the broom platform
     .foe('ghost', 2.8, 7, -56.5, [-4, 4, -62.5, -55.5])
     .p(0, 7, -66, 1.4, 6).gem(0, 7.9, -66)
@@ -4058,12 +4176,14 @@ function level2() {
     .p(7.5, 9, -92, 2.5, 2.5, { route: false }).turret(7.5, 9, -92, { rate: 3, range: 16 })
     .m(0, 7, -90, 3, 3, { ax: 'x', amp: 4, per: 3.5 }).gem(0, 7.9, -90)
     .m(0, 7, -96, 3, 3, { ax: 'x', amp: 4, per: 3.5, ph: 0.5 }).gem(0, 7.9, -96)
+    .offset(-1.5)
     .p(0, 7, -104, 6, 6).check(2.2, 7, -103).gem(-2, 7.9, -104)
     .cover(-1.6, 7, -101.4, 2.2, 0.4, 1.7)
-    .c(-4, 8.2, -110, 3, 3)
-    .c(-4, 9.4, -115, 3, 3).gem(-4, 10.3, -115)
-    .c(0, 10.6, -119, 3, 3)
-    .c(4, 11.8, -123, 3, 3).gem(4, 12.7, -123)
+    .c(-4, 8.2, -111.2, 2.6, 2.6)
+    .c(-4, 9.4, -117.6, 2.6, 2.6).gem(-4, 10.3, -117.6)
+    .c(0, 10.6, -123.1, 2.6, 2.6)
+    .c(4, 11.8, -129.5, 2.6, 2.6).gem(4, 12.7, -129.5)
+    .offset(-5.9)
     .p(4, 11.8, -130, 4, 4).pad(4, 11.8, -130.6)
     // new: second cannon on the final climb, a tombstone wall to wait behind
     .p(-5.5, 13, -127, 2.5, 2.5, { route: false }).turret(-5.5, 13, -127, { rate: 2.6, range: 15, ph: 1.2 })
@@ -4077,18 +4197,18 @@ function level2() {
 function level3() {
   const b = LB('noel', 'Noël sous la neige', 'Glace qui glisse, traîneaux et grand sapin');
   b.start(0, 0, 0, 10, 8)
-    .p(0, 0.6, -8, 4, 4).gem(0, 1.5, -8);
+    .p(-4.6, 0.4, -9, 3.6, 4).gem(-4.6, 1.3, -9);
   // spiral around the giant tree: each platform hangs on one of its branches
   const cx = 0, cz = -20, R = 6, branch = [cx, cz];
-  for (let k = 0; k < 12; k++) {
-    const th = k * Math.PI / 4;
-    const x = r2(cx + R * Math.sin(th)), z = r2(cz + R * Math.cos(th)), y = r2(1.8 + 1.2 * k);
-    if (k % 3 === 2) b.c(x, y, z, 3, 3, { branch }); else b.p(x, y, z, 3, 3, (k === 4 || k === 10) ? { ice: true, branch } : { branch });
-    if (k % 2 === 1 && k < 11) b.gem(x, y + 0.9, z);
+  for (let k = 0; k < 9; k++) {
+    const th = k * Math.PI / 3;
+    const x = r2(cx + R * Math.sin(th)), z = r2(cz + R * Math.cos(th)), y = r2(1.8 + 1.7 * k);
+    if (k % 3 === 2) b.c(x, y, z, 3, 3, { branch }); else b.p(x, y, z, 3, 3, (k === 3 || k === 7) ? { ice: true, branch } : { branch });
+    if (k % 2 === 1) b.gem(x, y + 0.9, z);
   }
   b.deco({ type: 'column', x: cx, z: cz, y0: -14, y1: 19 })
     .sign(0, 9.2, -25.2, 'Attention, la glace glisse')
-    .p(0, 16.2, -28, 5, 5, { branch }).check(2, 16.2, -27)
+    .p(0, 16.2, -29.5, 5, 5, { branch }).check(2, 16.2, -28.5)
     .m(0, 16.2, -36, 3, 3, { ax: 'x', amp: 5, per: 3 }).gem(0, 17.1, -36)
     .m(0, 16.2, -42.5, 3, 3, { ax: 'x', amp: 5, per: 3, ph: 0.5 }).gem(0, 17.1, -42.5)
     .p(0, 16.2, -49.5, 3, 3, { ice: true, blink: { on: 3, off: 1.2, ph: 0.5 } }).gem(0, 17.1, -49.5)
@@ -4104,9 +4224,10 @@ function level3() {
     .m(0, 21.5, -80.5, 4, 4, { ax: 'y', amp: 3.5, per: 5 }).gem(0, 23, -80.5)
     .p(0, 25, -88.5, 7, 6, { ice: true }).sweep(0, 25, -88.5, 6, 1.8, 0, { vary: 1.5, vper: 4.5 }).gem(2.4, 26, -90.6)
     .m(0, 25, -95, 2.5, 2.5, { ax: 'x', amp: 3, per: 2.4 }).gem(0, 25.9, -95)
-    .p(0, 26, -100.5, 2, 2, { trap: true }).gem(0, 26.9, -100.5)
+    .p(0, 26, -102.5, 2, 2, { trap: true }).gem(0, 26.9, -102.5)
+    .offset(-1.5)
     // new finale: a snowfield with charging penguins, a snowball cannon and snow walls to hide behind
-    .p(0, 26, -110, 12, 10).gem(-4, 26.9, -113).gem(4.5, 26.9, -107)
+    .p(0, 26, -110, 12, 10, { slow: 1 }).gem(-4, 26.9, -113).gem(4.5, 26.9, -107)
     .foe('penguin', -3, 26, -112, [-6, 6, -115, -105]).foe('penguin', 3.5, 26, -109, [-6, 6, -115, -105])
     .cover(-2.6, 26, -107.6, 2.6, 0.5, 1.6).cover(2.6, 26, -112.2, 2.6, 0.5, 1.6)
     .p(8, 27.5, -118, 2.5, 2.5, { route: false }).turret(8, 27.5, -118, { rate: 2.2, range: 18 })
@@ -4170,6 +4291,9 @@ function level4() {
     .prop('frame', -22, 1.2, -50, 5, 5).prop('frame', -22, 2.4, -50, 3.2, 3.2, { base: 1.2 }).prop('frame', -22, 3.6, -50, 1.8, 1.8, { base: 2.4 }).gem(-22, 4.5, -50)
     .prop('bench', 5, 0.55, -18, 3, 0.8).prop('bench', -13, 0.55, -40, 0.8, 3).prop('bench', 26, 0.55, -44, 3, 0.8)
     .deco({ type: 'sandpit', x: -10, z: -24, w: 7, d: 5 }).gem(-10, 0.9, -24)
+    // mud puddles and speed pads, away from the ball's way to the goal
+    .goo(-16, 0, -18, 4.5, 3.2).goo(12, 0, -40.5, 5, 3.4).goo(-9, 0, -55, 4, 3.4).goo(26, 0, -14, 3.6, 3)
+    .booster(10, 0, -10, Math.PI).booster(-27, 0, -30, Math.PI, { w: 1.6 }).booster(-26, 0, -40, Math.PI, { w: 1.6 })
     .finish(22, 0.4, -54, 10, 7);
   return b.def;
 }
@@ -4202,7 +4326,7 @@ function level5() {
     .m(1.2, 8.8, -99.5, 2.4, 2.4, { ax: 'y', amp: 1.2, per: 3.2 })
     .p(0, 9.6, -107, 5, 5).check(1.6, 9.6, -105.4).gem(-1.6, 10.5, -106)
     // D · the security floor
-    .p(0, 10.4, -118, 10, 8).gem(-3.6, 11.3, -115).gem(3.6, 11.3, -121)
+    .p(0, 10.4, -118, 10, 8, { slow: 1 }).gem(-3.6, 11.3, -115).gem(3.6, 11.3, -121)
     .p(-2.5, 12, -126.5, 2.4, 2.4).gem(-2.5, 12.9, -126.5)
     .p(1.5, 13.2, -132, 2.2, 2.2);
   // E · the director's blotter: 16 mahogany tiles; the outer ones give way when he loses his temper
@@ -4257,6 +4381,7 @@ function ring1() {
     .fan(-12.6, 0.5, -20, [1, 0, 0], 22, 2.4, 5.2, { on: 2.6, off: 4.4, ph: 2 })
     // Chaos: a second fan across the other axis, a ruler spinning on the core, a vacuum robot
     .hard()
+    .gooStrips(1, [0, 1])
     .p(0, -2.1, -7.4, 2.4, 2.4, { route: false })
     .fan(0, 0.5, -7.4, [0, 0, -1], 22, 2.4, 5.2, { on: 2.4, off: 4.6, ph: 5.5 })
     .sweep(0, 0, -20, 7.2, 1.15, 0, { vary: 1.1, vper: 5 })
@@ -4277,6 +4402,7 @@ function ring2() {
     .foe('ghost', 5, 0, -25, [-9, 9, -29, -11])
     // Chaos: a second ghost, a pumpkin cannon on a rock and a crypt vent
     .hard()
+    .gooStrips(1, [0, 1])
     .foe('ghost', -5, 0, -15, [-9, 9, -29, -11])
     .p(-13.5, 0.4, -20, 2.4, 2.4, { route: false })
     .turret(-13.5, 0.4, -20, { rate: 2.6, range: 24, ry: Math.PI / 2 })
@@ -4298,6 +4424,7 @@ function ring3() {
     .foe('penguin', 0, 0, -26, [-8.5, 8.5, -28.5, -11.5])
     // Chaos: two more penguins, a snow cannon and a spinning hockey stick
     .hard()
+    .gooStrips(1, [0, 1])
     .foe('penguin', -6, 0, -14, [-8.5, 8.5, -28.5, -11.5]).foe('penguin', 6, 0, -14, [-8.5, 8.5, -28.5, -11.5])
     .p(-12.6, -2.1, -20, 2.4, 2.4, { route: false })
     .fan(-12.6, 0.5, -20, [1, 0, 0], 22, 2.4, 4.6, { on: 2.6, off: 4, ph: 3, tint: '#EAF6FF' })
@@ -4318,6 +4445,7 @@ function ring4() {
     .turret(13.5, 0.4, -20, { rate: 2.8, range: 22, ry: -Math.PI / 2 })
     // Chaos: a second launcher across the pond, a rowing oar spinning and two buoys to bounce off
     .hard()
+    .gooStrips(1, [0, 1])
     .p(-13.5, 0.4, -20, 2.2, 2.2, { route: false, prop: 'buoy', nosup: true })
     .turret(-13.5, 0.4, -20, { rate: 2.8, range: 22, ry: Math.PI / 2, ph: 1.4 })
     .sweep(0, 0, -20, 6.6, -1.1, 0, { vary: 1, vper: 5.5 })
@@ -4337,169 +4465,231 @@ const LEVEL_DEFS = LEVELS.map(f => f());
 ['bureau', 'halloween', 'noel', 'parc', 'boss', null, 'ring:0', 'ring:1', 'ring:2', 'ring:3'].forEach((m, i) => { if (m) LEVEL_DEFS[i].music = m; });
 
 // ===================== Parcours surprise: a course assembled from random sections =====================
-// The same seed builds the same course on every machine. Each section starts from the current landing
-// platform and ends on a new one; the draw ramps up (easy sections first, combined hazards last) and
-// the decor changes with the seed. Gaps stay inside the jump budget (single ~5.7 m long / 2 m high,
-// double ~9 m / 3.6 m, cushion ~5.6 m high); test/sim.js replays hundreds of seeds.
+// The same seed (and difficulty) builds the same course on every machine. Each section starts from the
+// current landing platform and ends on a new one; the draw ramps up (easy sections first, combined hazards
+// last) and the decor changes with the seed. Gaps stay inside the jump budget (single ~5.7 m long / 2 m
+// high, double ~9 m / 3.6 m, from glue ~4 m / 7.5 m); test/sim.js replays hundreds of seeds per difficulty.
+// Chaos and Insane: longer courses, wider gaps, smaller platforms, faster hazards, glue, fewer checkpoints;
+// Insane adds rubber stamps on the landings and rains of binders called by the host (see eventsTick).
 const GEN = {
   themes: ['bureau', 'halloween', 'noel', 'parc'],
   themeNames: { bureau: 'bureau', halloween: 'Halloween', noel: 'Noël', parc: 'parc' },
   foe: { bureau: 'robot', halloween: 'ghost', noel: 'penguin', parc: 'robot' },
-  plan: [1, 1, 2, 2, 2, 3, 3, 3]
+  plans: [[1, 1, 2, 2, 2, 3, 3, 3], [1, 2, 2, 2, 3, 3, 3, 3, 3, 3], [2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3]],
+  checks: [[2, 5], [3, 7], [4, 8]],
+  diffNames: ['Normal', 'Chaos', 'Insane']
 };
 function newSeed() { const q = typeof QS !== 'undefined' && +QS.get('seed'); return q > 0 ? q : 1000 + Math.floor(Math.random() * 9000); }
-function genCourse(seed) {
+function genCourse(seed, diff) {
   seed = Math.max(1, Math.floor(+seed || 1));
-  const R = rng(seed * 7919 + 17);
+  const D = clamp(Math.floor(+diff || 0), 0, 2);
+  const R = rng(seed * 7919 + 17 + D * 104729);
   const theme = GEN.themes[seed % GEN.themes.length];
-  const b = LB(theme, 'Parcours surprise', 'Tracé n° ' + seed + ' · décor ' + GEN.themeNames[theme]);
+  const b = LB(theme, 'Parcours surprise', 'Tracé n° ' + seed + ' · décor ' + GEN.themeNames[theme] + (D ? ' · ' + GEN.diffNames[D] : ''));
   const rf = (a, c) => a + R() * (c - a);
-  let cur = { x: 0, top: 0, z: 0, d: 8, w: 10 };
+  let cur = { x: 0, top: 0, z: 0, d: 8, w: 10 }, curP = null;
   b.start(0, 0, 0, 10, 8);
   const edge = () => cur.z - cur.d / 2;
   // sideways step that keeps the course within |x| <= 6
   const drift = amt => { let s = R() < 0.5 ? -1 : 1; if (Math.abs(cur.x + s * amt) > 6) s = -s; return r2(s * amt); };
-  const land = (x, top, zNear, w, d, o) => { const z = r2(zNear - d / 2); b.p(r2(x), r2(top), z, w, d, o); cur = { x: r2(x), top: r2(top), z, w, d }; return cur; };
+  const land = (x, top, zNear, w, d, o) => { const z = r2(zNear - d / 2); b.p(r2(x), r2(top), z, w, d, o); curP = b.def.plats[b.def.plats.length - 1]; curP.sec = secName; cur = { x: r2(x), top: r2(top), z, w, d }; return cur; };
   const gem = (dy) => b.gem(cur.x, r2(cur.top + (dy || 0.9)), cur.z);
   const side = () => (cur.x > 0 ? -1 : 1);
   const foe = GEN.foe[theme];
+  // difficulty knobs (Normal keeps the old sizes and speeds, with slightly wider gaps)
+  const G = g => r2(g + [0.3, 0.9, 1.6][D]);            // gap between platforms
+  const S = n => r2(Math.max(2.2, n * [1, 0.85, 0.75][D])); // small platform size
+  const SP = v => r2(v * [1, 1.15, 1.3][D]);             // hazard speed
+  const RT = v => r2(v * [1, 0.85, 0.72][D]);            // hazard period
+  const REST = [5, 4.2, 3.6][D];
+  const rest = gap => land(cur.x, cur.top, edge() - G(gap || 2.4), REST, REST);
+  if (D > 1) b.rain({ mech: false });
 
   const SECTIONS = {
     stairs: { tiers: [1], name: 'Escalier', run() {
-      for (let i = 0; i < 3; i++) { land(cur.x + drift(rf(1.5, 2.6)), cur.top + 0.8, edge() - 2.4, 3, 3); if (i === 1) gem(); }
-      land(cur.x, cur.top, edge() - 2.4, 5, 5);
+      for (let i = 0; i < 3; i++) { land(cur.x + drift(rf(1.5, 2.6)), cur.top + 0.8, edge() - G(3), S(3), S(3)); if (i === 1) gem(); }
+      rest();
     } },
     crumbles: { tiers: [1, 2], name: 'Planches qui cèdent', run(t) {
-      for (let i = 0; i < 3; i++) { land(cur.x + drift(rf(0.8, 1.6)), cur.top + (t > 1 ? 0.5 : 0.2), edge() - (t > 1 ? 2.6 : 2.2), 3, 3, { kind: 'crumble' }); if (i !== 1) gem(); }
-      land(cur.x, cur.top, edge() - 2.4, 5, 5);
+      for (let i = 0; i < 3; i++) { land(cur.x + drift(rf(0.8, 1.6)), cur.top + (t > 1 ? 0.5 : 0.2), edge() - G(t > 1 ? 3 : 2.8), S(3), S(3), { kind: 'crumble' }); if (i !== 1) gem(); }
+      rest();
     } },
     slalom: { tiers: [1], name: 'Slalom', run() {
-      land(cur.x, cur.top + 0.4, edge() - 2.6, 7, 9);
+      land(cur.x, cur.top + 0.4, edge() - G(2.6), 7, 9);
       const s = R() < 0.5 ? 1 : -1;
       b.bumper(r2(cur.x - 2 * s), cur.top, r2(cur.z + 2.6)).bumper(r2(cur.x + 2 * s), cur.top, cur.z).bumper(r2(cur.x - 2 * s), cur.top, r2(cur.z - 2.6));
       b.gem(r2(cur.x + 2 * s), r2(cur.top + 0.9), r2(cur.z + 2.6));
     } },
     trampoline: { tiers: [1, 2], name: 'Coussin péteur', run() {
-      land(cur.x, cur.top, edge() - 2.4, 4, 4);
+      land(cur.x, cur.top, edge() - G(2.4), 4, 4);
       b.pad(cur.x, cur.top, r2(cur.z - 0.6));
-      land(cur.x + drift(rf(0, 1)), cur.top + 4.2, edge() - 2.6, 4, 4); gem();
-      land(cur.x, cur.top, edge() - 2.4, 5, 5);
+      land(cur.x + drift(rf(0, 1)), cur.top + 4.2, edge() - G(2.6), S(4), S(4)); gem();
+      rest();
     } },
     sweeper: { tiers: [1, 2], name: 'Balayeur', run(t) {
-      land(cur.x, cur.top + 0.6, edge() - 2.6, 8, 7, theme === 'noel' && t > 1 ? { ice: true } : undefined);
-      b.sweep(cur.x, cur.top, cur.z, 6.5, (R() < 0.5 ? 1 : -1) * (t > 1 ? 1.5 : 1.25), 0, t > 1 ? { vary: 1.2, vper: 5 } : undefined);
+      land(cur.x, cur.top + 0.6, edge() - G(2.6), 8, 7, theme === 'noel' && t > 1 ? { ice: true } : undefined);
+      b.sweep(cur.x, cur.top, cur.z, 6.5, (R() < 0.5 ? 1 : -1) * SP(t > 1 ? 1.5 : 1.25), 0, t > 1 ? { vary: 1.2, vper: 5 } : undefined);
       b.gem(r2(cur.x + 2.8), r2(cur.top + 0.9), r2(cur.z + 2.4));
     } },
     movers: { tiers: [2], name: 'Drones', run() {
-      const x = clamp(cur.x, -3, 3), per = r2(rf(3, 3.8));
-      land(x, cur.top, edge() - 2.6, 3, 3, { move: { ax: 'x', amp: 3.2, per } }); gem();
-      land(x, cur.top, edge() - 2.6, 3, 3, { move: { ax: 'x', amp: 3.2, per, ph: 0.5 } });
-      land(x, cur.top, edge() - 2.6, 5, 5);
+      const x = clamp(cur.x, -3, 3), per = RT(rf(3, 3.8)), amp = r2(3.2 + 0.3 * D);
+      land(x, cur.top, edge() - G(3), S(3), S(3), { move: { ax: 'x', amp, per } }); gem();
+      land(x, cur.top, edge() - G(3), S(3), S(3), { move: { ax: 'x', amp, per, ph: 0.5 } });
+      rest();
     } },
     lifts: { tiers: [2], name: 'Ascenseurs', run() {
-      const per = r2(rf(3.6, 4.4));
-      land(cur.x, cur.top + 0.8, edge() - 2.6, 3, 3, { move: { ax: 'y', amp: 1.3, per } }); gem(1.2);
-      land(cur.x + drift(1.2), cur.top + 0.8, edge() - 2.6, 3, 3, { move: { ax: 'y', amp: 1.3, per, ph: 0.5 } });
-      land(cur.x, cur.top + 0.8, edge() - 2.6, 5, 5);
+      const per = RT(rf(3.6, 4.4));
+      land(cur.x, cur.top + 0.8, edge() - G(3), S(3), S(3), { move: { ax: 'y', amp: 1.3, per } }); gem(1.2);
+      land(cur.x + drift(1.2), cur.top + 0.8, edge() - G(3), S(3), S(3), { move: { ax: 'y', amp: 1.3, per, ph: 0.5 } });
+      land(cur.x, cur.top + 0.8, edge() - G(2.6), REST, REST);
     } },
     beams: { tiers: [2, 3], name: 'Poutres', run(t) {
-      land(cur.x + drift(rf(0.6, 1.4)), cur.top + 0.4, edge() - 1.6, 1.4, 6); gem();
-      land(cur.x + drift(rf(1.6, 2.6)), cur.top + 0.4, edge() - 1.6, 1.4, 6, t > 2 ? { blink: { on: 2.4, off: 1.2 } } : undefined); gem();
-      land(cur.x, cur.top, edge() - 2.2, 5, 5);
+      const bw = [1.4, 1.25, 1.1][D];
+      land(cur.x + drift(rf(0.6, 1.4)), cur.top + 0.4, edge() - G(1.6), bw, 6); gem();
+      land(cur.x + drift(rf(1.6, 2.6)), cur.top + 0.4, edge() - G(1.6), bw, 6, t > 2 || D > 1 ? { blink: { on: 2.4, off: 1.2 } } : undefined); gem();
+      land(cur.x, cur.top, edge() - G(2.2), REST, REST);
     } },
     ghosts: { tiers: [2, 3], name: 'Planches fantômes', run(t) {
-      const on = t > 2 ? 2 : 2.4, off = t > 2 ? 1.4 : 1.2;
-      for (let i = 0; i < 3; i++) { land(cur.x + drift(rf(0.8, 1.6)), cur.top + 0.3, edge() - 2.3, 3, 3, { blink: { on, off, ph: r2(i * (on + off) / 3) } }); if (i === 1) gem(); }
-      land(cur.x, cur.top, edge() - 2.4, 5, 5);
+      const on = r2((t > 2 ? 2 : 2.4) - 0.2 * D), off = r2((t > 2 ? 1.4 : 1.2) + 0.1 * D);
+      for (let i = 0; i < 3; i++) { land(cur.x + drift(rf(0.8, 1.6)), cur.top + 0.3, edge() - G(2.9), S(3), S(3), { blink: { on, off, ph: r2(i * (on + off) / 3) } }); if (i === 1) gem(); }
+      rest();
     } },
     windy: { tiers: [2, 3], name: 'Courants d\'air', run(t) {
       let s = side();
       for (let i = 0; i < 2; i++) {
-        land(cur.x, cur.top + 0.4, edge() - 2.6, 3, 3); if (i === 0) gem();
+        land(cur.x, cur.top + 0.4, edge() - G(3.1), S(3), S(3)); if (i === 0) gem();
         const fx = r2(cur.x - s * 7.2), fy = r2(cur.top + 1.7);
         b.p(fx, r2(fy - 2.1), cur.z, 2.2, 2.2, { route: false });
-        b.fan(fx, fy, cur.z, [s, 0, 0], 13, 1.9, t > 2 ? 5 : 4.4, { on: 2.4, off: 2.4, ph: i * 1.2 });
+        b.fan(fx, fy, cur.z, [s, 0, 0], 13, 1.9, SP(t > 2 ? 5 : 4.4), { on: 2.4, off: RT(2.4), ph: i * 1.2 });
         s = -s;
       }
-      land(cur.x, cur.top, edge() - 2.6, 5, 5);
+      land(cur.x, cur.top, edge() - G(2.6), REST, REST);
     } },
     turret: { tiers: [2, 3], name: 'Sous le feu', run(t) {
-      land(cur.x, cur.top + 0.4, edge() - 2.6, 7, 8);
+      land(cur.x, cur.top + 0.4, edge() - G(2.6), 7, 8);
       const s = side();
       b.cover(r2(cur.x - 1.8), cur.top, r2(cur.z + 1.4), 2.6, 0.4, 1.6).cover(r2(cur.x + 1.8), cur.top, r2(cur.z - 1.8), 2.6, 0.4, 1.6);
       b.p(r2(cur.x + s * 6.4), r2(cur.top + 1), r2(cur.z - 3), 2.4, 2.4, { route: false });
-      b.turret(r2(cur.x + s * 6.4), r2(cur.top + 1), r2(cur.z - 3), { rate: t > 2 ? 2.3 : 2.8, range: 15 });
+      b.turret(r2(cur.x + s * 6.4), r2(cur.top + 1), r2(cur.z - 3), { rate: RT(t > 2 ? 2.3 : 2.8), range: 15 });
+      if (D > 1) { b.p(r2(cur.x - s * 6.4), r2(cur.top + 1), r2(cur.z + 2), 2.4, 2.4, { route: false }); b.turret(r2(cur.x - s * 6.4), r2(cur.top + 1), r2(cur.z + 2), { rate: 2.4, range: 15, ph: 1.1 }); }
       b.gem(r2(cur.x - 1.8), r2(cur.top + 0.9), r2(cur.z + 2.4));
     } },
     door: { tiers: [2], name: 'La porte', run() {
-      land(cur.x, cur.top + 0.4, edge() - 2.6, 6, 8);
-      b.door(cur.x, cur.top, cur.z, 6, 2.6, 'x', { on: 2, off: 2.4, ph: r2(rf(0, 4)) });
+      land(cur.x, cur.top + 0.4, edge() - G(2.6), 6, 8);
+      b.door(cur.x, cur.top, cur.z, 6, 2.6, 'x', { on: 2, off: RT(2.4), ph: r2(rf(0, 4)) });
       b.gem(cur.x, r2(cur.top + 0.9), r2(cur.z - 2.6));
     } },
     guard: { tiers: [2, 3], name: 'Le gardien', run(t) {
-      land(cur.x, cur.top + 0.4, edge() - 2.6, 8, 8);
+      land(cur.x, cur.top + 0.4, edge() - G(2.6), 8, 8);
       const reg = [r2(cur.x - 3.6), r2(cur.x + 3.6), r2(cur.z - 3.6), r2(cur.z + 3.6)];
       b.foe(foe, r2(cur.x - 2), cur.top, r2(cur.z - 1), reg);
-      if (t > 2) b.foe(foe, r2(cur.x + 2), cur.top, r2(cur.z + 1.5), reg);
+      if (t > 2 || D) b.foe(foe, r2(cur.x + 2), cur.top, r2(cur.z + 1.5), reg);
+      if (D > 1) b.foe(foe, r2(cur.x + 0.5), cur.top, r2(cur.z - 3), reg);
       b.gem(r2(cur.x + 2.6), r2(cur.top + 0.9), r2(cur.z - 2.6));
     } },
     pistons: { tiers: [3], name: 'Pistons', run() {
-      land(cur.x, cur.top + 0.4, edge() - 2.4, 3, 11);
-      const top = r2(cur.top + 1);
-      b.piston(r2(cur.x - 2.3), top, r2(cur.z + 2.6), 1.4, 1.8, 1, { ax: 'x', amp: 2.6, per: 3.2 });
-      b.piston(r2(cur.x + 2.3), top, r2(cur.z - 2.6), 1.4, 1.8, 1, { ax: 'x', amp: -2.6, per: 3.2, ph: 0.5 });
+      land(cur.x, cur.top + 0.4, edge() - G(2.4), 3, 11);
+      const top = r2(cur.top + 1), per = RT(3.2);
+      b.piston(r2(cur.x - 2.3), top, r2(cur.z + 2.6), 1.4, 1.8, 1, { ax: 'x', amp: 2.6, per });
+      b.piston(r2(cur.x + 2.3), top, r2(cur.z - 2.6), 1.4, 1.8, 1, { ax: 'x', amp: -2.6, per, ph: 0.5 });
       gem();
-      land(cur.x, cur.top, edge() - 2.4, 5, 5);
+      rest();
     } },
     combo: { tiers: [3], name: 'Drone sous surveillance', run() {
       const x = clamp(cur.x, -3, 3);
-      land(x, cur.top, edge() - 2.6, 3, 3, { move: { ax: 'x', amp: 3, per: r2(rf(3, 3.6)) } }); gem();
-      land(x, cur.top + 0.4, edge() - 2.6, 6, 6);
+      land(x, cur.top, edge() - G(2.6), S(3), S(3), { move: { ax: 'x', amp: 3, per: RT(rf(3, 3.6)) } }); gem();
+      land(x, cur.top + 0.4, edge() - G(2.6), 6, 6);
       const s = x > 0 ? -1 : 1;
       b.p(r2(x + s * 6.8), r2(cur.top + 1), r2(cur.z + 4), 2.4, 2.4, { route: false });
-      b.turret(r2(x + s * 6.8), r2(cur.top + 1), r2(cur.z + 4), { rate: 2.6, range: 14 });
+      b.turret(r2(x + s * 6.8), r2(cur.top + 1), r2(cur.z + 4), { rate: RT(2.6), range: 14 });
       b.cover(x, cur.top, r2(cur.z - 1.2), 2.6, 0.4, 1.6);
     } },
     traps: { tiers: [3], name: 'Rien n\'est solide', run() {
-      land(cur.x + drift(1.2), cur.top + 0.3, edge() - 2.3, 3, 3, { kind: 'crumble' });
-      land(cur.x + drift(1.4), cur.top + 0.3, edge() - 2.3, 3, 3, { blink: { on: 2.2, off: 1.3 } }); gem();
-      land(cur.x + drift(1.2), cur.top + 0.3, edge() - 2.3, 3, 3, { kind: 'crumble' });
-      land(cur.x, cur.top, edge() - 2.4, 5, 5);
+      land(cur.x + drift(1.2), cur.top + 0.3, edge() - G(2.9), S(3), S(3), { kind: 'crumble' });
+      land(cur.x + drift(1.4), cur.top + 0.3, edge() - G(2.9), S(3), S(3), { blink: { on: RT(2.2), off: 1.3 } }); gem();
+      land(cur.x + drift(1.2), cur.top + 0.3, edge() - G(2.9), S(3), S(3), { kind: 'crumble' });
+      rest();
     } },
     spinners: { tiers: [3], name: 'Double balayeur', run() {
-      land(cur.x, cur.top + 0.4, edge() - 2.6, 6.5, 6.5);
-      b.sweep(cur.x, cur.top, cur.z, 5.4, 1.8, 0);
+      land(cur.x, cur.top + 0.4, edge() - G(2.6), 6.5, 6.5);
+      b.sweep(cur.x, cur.top, cur.z, 5.4, SP(1.8), 0);
       gem();
-      land(cur.x + drift(1), cur.top + 0.4, edge() - 2.6, 6.5, 6.5);
-      b.sweep(cur.x, cur.top, cur.z, 5.4, -1.8, 0.8);
+      land(cur.x + drift(1), cur.top + 0.4, edge() - G(2.6), 6.5, 6.5);
+      b.sweep(cur.x, cur.top, cur.z, 5.4, -SP(1.8), 0.8);
+    } },
+    // --- sticky floors and boosts ---
+    swamp: { tiers: [1, 2, 3], name: 'Marécage', run(t) {
+      for (let i = 0; i < 3; i++) {
+        const mv = t > 2 && i === 1;
+        land(mv ? clamp(cur.x, -3, 3) : cur.x + drift(rf(0.6, 1.4)), cur.top + 0.2, edge() - G(2.6), S(3.4), S(3.4), mv ? { slow: 1, move: { ax: 'x', amp: 2, per: RT(rf(3.8, 4.4)) } } : { slow: 1 });
+        if (i === 1) gem();
+      }
+      rest();
+    } },
+    turbo: { tiers: [1, 2, 3], name: 'Turbo', run() {
+      // a speed pad at the start of a runway, then a gap too wide for a double jump without it
+      land(cur.x, cur.top, edge() - G(2.4), 3.2, 10);
+      b.booster(cur.x, cur.top, r2(cur.z + 2.5), Math.PI);
+      b.gem(cur.x, r2(cur.top + 0.9), r2(cur.z - 2.5));
+      land(cur.x, cur.top, edge() - [9.8, 10.6, 11.2][D], 5, 5);
+    } },
+    catapult: { tiers: [2, 3], name: 'Catapulte', run() {
+      rest();
+      const px = cur.x, ptop = cur.top, pz = r2(edge() + 1.1);
+      const tw = [4.6, 4, 3.6][D], up = [1.5, 2, 2.5][D];
+      const tx = r2(px + drift(rf(1, 2.5))), tz = r2(pz - [12.5, 14, 15][D]);
+      b.pad(px, ptop, pz, { launch: launchTo(px, ptop, pz, tx, ptop + up, r2(tz + 0.5), 18) });
+      land(tx, ptop + up, tz + tw / 2, tw, tw); gem();
+    } },
+    bounce: { tiers: [1, 2, 3], name: 'Trampolines', run() {
+      const gap = [3.4, 3.9, 4.4][D];
+      land(cur.x, cur.top + 0.3, edge() - G(2.4), 4, 4.4); b.pad(cur.x, cur.top, r2(cur.z - 1.35)); gem();
+      land(cur.x + drift(rf(0.5, 1.5)), cur.top + 3, edge() - gap, 4, 4.4); b.pad(cur.x, cur.top, r2(cur.z - 1.35));
+      land(cur.x + drift(rf(0.5, 1.5)), cur.top + 3, edge() - gap, REST, REST); gem();
+    } },
+    glueSweep: { tiers: [2, 3], name: 'Balayeur dans la colle', run(t) {
+      land(cur.x, cur.top + 0.4, edge() - G(2.6), 8, 7, { slow: 1 });
+      b.sweep(cur.x, cur.top, cur.z, 6.5, (R() < 0.5 ? 1 : -1) * SP(t > 2 ? 1.1 : 0.9), 0);
+      b.gem(r2(cur.x - 2.8), r2(cur.top + 0.9), r2(cur.z - 2.4));
+      rest();
     } }
   };
+  // Chaos and Insane: some landings turn to glue, and in Insane a rubber stamp waits over others
+  const spice = () => {
+    if (!D || !curP || curP.move || curP.blink || curP.kind || curP.ice || curP.slow) return;
+    const r = R();
+    if (r < [0, 0.3, 0.35][D]) curP.slow = 1;
+    else if (D > 1 && r < 0.8 && curP.w >= 3.4 && curP.d >= 3.4) b.stamp(curP.x, curP.top, curP.z, r2(curP.w - 0.2), r2(curP.d - 0.2), { mech: false });
+  };
 
+  let secName = 'start';
   const used = new Set(), names = [];
-  GEN.plan.forEach((tier, i) => {
+  GEN.plans[D].forEach((tier, i) => {
     let pool = Object.keys(SECTIONS).filter(k => !used.has(k) && SECTIONS[k].tiers.includes(tier));
     if (!pool.length) pool = Object.keys(SECTIONS).filter(k => !used.has(k));
     const k = pool[Math.floor(R() * pool.length)];
     used.add(k); names.push(SECTIONS[k].name);
+    secName = k;
     SECTIONS[k].run(tier);
-    // checkpoints after the 3rd and 6th sections
-    if (i === 2 || i === 5) {
-      land(cur.x, cur.top, edge() - 2.4, 6, 6);
+    spice();
+    secName = 'rest';
+    if (GEN.checks[D].includes(i)) {
+      land(cur.x, cur.top, edge() - G(2.4), 6, 6);
       b.check(r2(cur.x + 2), cur.top, r2(cur.z + 1.2));
     }
   });
-  land(cur.x, cur.top, edge() - 2.6, 6, 5);
-  const fz = r2(edge() - 2.4 - 5);
+  land(cur.x, cur.top, edge() - G(2.6), 6, 5);
+  const fz = r2(edge() - G(2.4) - 5);
   b.finish(cur.x, cur.top, fz, 12, 10).bumper(r2(cur.x - 3), cur.top, r2(fz + 3.2)).bumper(r2(cur.x + 3), cur.top, r2(fz + 3.2));
   const d = b.def;
-  d.gen = true; d.seed = seed; d.sections = names; d.music = 'arcade:' + theme;
+  d.gen = true; d.seed = seed; d.diff = D; d.sections = names; d.music = 'arcade:' + theme;
   return d;
 }
 
 // ===================== players: goofy blob avatar, local controller, remotes =====================
 const HATS = ['Aucun', 'Cône de fête', 'Hélice', 'Haut-de-forme', 'Antenne', 'Bonnet'];
 const EMOTES = ['Coucou', 'Trop facile', 'Attendez-moi', 'Pardon'];
-const SHOUTS = { 10: 'Aaaah', 11: 'Aïe', 12: 'Pouet', 13: 'Hop', 14: 'Ouf', 15: 'Lâche-moi', 16: 'Et hop', 17: 'Paf' };
+const SHOUTS = { 10: 'Aaaah', 11: 'Aïe', 12: 'Pouet', 13: 'Hop', 14: 'Ouf', 15: 'Lâche-moi', 16: 'Et hop', 17: 'Paf', 18: 'Ça colle', 19: 'Wouhou' };
 
 const BLOB = (() => {
   const prof = [[0, 0], [0.3, 0.012], [0.44, 0.07], [0.5, 0.2], [0.505, 0.36], [0.475, 0.55], [0.4, 0.73], [0.29, 0.87], [0.15, 0.965], [0, 0.995]];
@@ -4775,7 +4965,7 @@ const P = {
   grounded: false, ground: null, coyote: 0, buffer: 0, airJumps: 1, cuttable: false,
   facing: Math.PI, frozen: true, blob: null, events: [],
   diving: false, diveT: 0, diveCd: 0, diveReq: false, stunT: 0, knockT: 0, bumpCd: 0, wishX: 0, wishZ: 0, pushT: 0,
-  grab: null, heldBy: null, heldSeq: 0, holdTarget: null, escape: 0, pushCd: 0, grabCd: 0, slowK: 1, windT: 0, windX: 0, windZ: 0
+  grab: null, heldBy: null, heldSeq: 0, holdTarget: null, escape: 0, pushCd: 0, grabCd: 0, slowK: 1, windT: 0, windX: 0, windZ: 0, boostT: 0, boostLand: false
 };
 const EPS = 1e-4;
 function pOverlap(s, x, y, z) {
@@ -4861,13 +5051,20 @@ function stepPlayer(L, h, camYaw, inputOn) {
   if (P.stunT > 0) P.stunT -= h;
   if (P.diveCd > 0) P.diveCd -= h;
   if (P.bumpCd > 0) P.bumpCd -= h;
+  if (P.boostT > 0) P.boostT -= h;
 
   // dive (belly flop)
   if (P.diveReq && inputOn && !P.diving && P.diveCd <= 0 && P.stunT <= 0) {
     P.diving = true; P.diveT = 0.9; P.diveCd = 1.1;
     const f = P.facingTarget != null ? P.facingTarget : P.facing;
-    P.vel.x = Math.sin(f) * PH.dive; P.vel.z = Math.cos(f) * PH.dive;
-    P.vel.y = P.grounded ? 5.5 : Math.max(P.vel.y, 3.5);
+    if (P.grounded) {
+      // from the ground: a short lunge (no double jump afterwards)
+      P.vel.x = Math.sin(f) * PH.dive; P.vel.z = Math.cos(f) * PH.dive; P.vel.y = 5.5;
+    } else {
+      // in the air: a belly flop that drops you, so it can no longer stretch a double jump across a gap
+      const sp = clamp(Math.hypot(P.vel.x, P.vel.z), PH.speed * 0.7, PH.speed + 0.5);
+      P.vel.x = Math.sin(f) * sp; P.vel.z = Math.cos(f) * sp; P.vel.y = Math.min(P.vel.y, 0) - 3;
+    }
     P.grounded = false; P.ground = null; P.airJumps = 0; P.cuttable = false;
     P.events.push('dive');
   }
@@ -4881,12 +5078,14 @@ function stepPlayer(L, h, camYaw, inputOn) {
   const wl = Math.hypot(wx, wz);
   if (wl > 1) { wx /= wl; wz /= wl; }
   P.wishX = wx; P.wishZ = wz;
-  const onIce = P.grounded && P.ground && P.ground.ice;
+  const onIce = P.grounded && P.ground && P.ground.ice, sticky = P.grounded && P.ground && P.ground.slow;
   let acc = P.grounded ? (onIce ? (wl > 0.05 ? PH.iceAcc : PH.iceFric) : (wl > 0.05 ? PH.accG : PH.fric)) : PH.accA;
   if (P.knockT > 0) acc *= 0.25;
   if (P.diving) acc = P.grounded ? PH.fric * 0.5 : 2;
   if (P.stunT > 0) acc = PH.fric * 0.35;
-  const top = PH.speed * (P.slowK || 1);
+  // a booster or a launch pad: the momentum carries you, steering only nudges it
+  if (P.boostT > 0 && !sticky) acc *= PH.boostKeep;
+  const top = PH.speed * (P.slowK || 1) * (sticky ? PH.slowSpeed : 1);
   // wind from fans (set by the previous substep) shifts the speed we tend to
   const wX = P.windX, wZ = P.windZ; P.windX = 0; P.windZ = 0;
   let dvx = wx * top + wX - P.vel.x, dvz = wz * top + wZ - P.vel.z;
@@ -4898,7 +5097,7 @@ function stepPlayer(L, h, camYaw, inputOn) {
   if (P.buffer > 0) P.buffer -= h;
   if (P.buffer > 0 && control) {
     if (P.coyote > 0) {
-      P.vel.y = PH.jump; P.coyote = 0; P.buffer = 0; P.grounded = false; P.ground = null; P.airJumps = 1; P.cuttable = true;
+      P.vel.y = PH.jump * (sticky ? PH.slowJump : 1); P.coyote = 0; P.buffer = 0; P.grounded = false; P.ground = null; P.airJumps = 1; P.cuttable = true;
       P.events.push('jump');
     } else if (P.airJumps > 0) {
       P.vel.y = PH.djump; P.airJumps = 0; P.buffer = 0; P.cuttable = true;
@@ -4919,10 +5118,14 @@ function stepPlayer(L, h, camYaw, inputOn) {
     const g = P.ground;
     if (g.kind === 'bounce') {
       P.vel.y = PH.bounce; P.grounded = false; P.ground = null; P.airJumps = 1; P.cuttable = false; P.diving = false;
-      g.anim = 1; P.events.push('bounce');
+      // launch pad: thrown forward as well as up
+      if (g.launch) { P.vel.x = g.launch[0]; P.vel.z = g.launch[1]; P.vel.y = g.launch[2] || PH.bounce * 0.82; P.boostT = 1.3; P.boostLand = true; P.knockT = 0; }
+      g.anim = 1; P.events.push(g.launch ? 'launch' : 'bounce');
     } else {
       P.airJumps = 1;
-      if (!was) P.events.push({ land: -prevVy });
+      // a launch pad's carry stops when you land (a booster's lasts while you run)
+      if (P.boostLand) { P.boostT = 0; P.boostLand = false; }
+      if (!was) P.events.push({ land: -prevVy, slow: !!g.slow });
       if (P.diving) { P.diving = false; P.stunT = 0.38; P.events.push('flop'); }
       if (g.kind === 'crumble') L.touch(g);
     }
@@ -5610,6 +5813,7 @@ function doPush(k) {
   if (!t) { SFX.whoosh(); P.vel.x += fx * 2.5; P.vel.z += fz * 2.5; return; }
   let s = lerp(INT.pushMin, INT.pushMax, k);
   if (Game.mode === 'coop' && t.kind === 'p') s *= INT.coopK;
+  if (ringK(Game.level) > 1) s *= 1.2;
   let dx = t.pos.x - P.pos.x, dz = t.pos.z - P.pos.z;
   const d = Math.hypot(dx, dz) || 1;
   dx = dx / d * 0.6 + fx * 0.4; dz = dz / d * 0.6 + fz * 0.4;
@@ -5857,13 +6061,14 @@ function foeStep(L, f, h, targets) {
   } else if (tgt) {
     const dx = tgt.x - f.x, dz = tgt.z - f.z, d = Math.hypot(dx, dz) || 1;
     f.state = FOE_ST.chase;
-    dvx = dx / d * T.speed; dvz = dz / d * T.speed;
+    const rk = T.mode === 'brawl' ? ringK(L) : 0;
+    dvx = dx / d * T.speed * [1, 1.08, 1.16][rk]; dvz = dz / d * T.speed * [1, 1.08, 1.16][rk];
     if (T.mode === 'brawl') {
       // sparring robot: walk up to the target and shove it, but avoid walking off the edge
       if (d < 1.2 && f.pushCd <= 0 && Game.elapsed > 2500) {
-        f.pushCd = 1.6 + Math.random() * 1.3; f.punchT = 1;
+        f.pushCd = (1.6 + Math.random() * 1.3) * [1, 0.85, 0.7][rk]; f.punchT = 1;
         if (f.vis.blob) f.vis.blob.punch(0.6);
-        const s = 7.5 + Math.random() * 3.5;
+        const s = (7.5 + Math.random() * 3.5) * [1, 1.15, 1.3][rk];
         if (tgt.me) applyHitToMe('f:' + f.id, 'p', dx / d, dz / d, s);
         else if (tgt.foe) foeApplyHit(tgt.foe, dx / d, dz / d, s, 'p', 'f:' + f.id);
         else if (tgt.peer) sendHit(tgt.peer, 'p', dx / d, dz / d, s);
@@ -6082,9 +6287,11 @@ Level.prototype.addFan = function (o) {
     power(t) {
       if (L.defense && o.mech !== false) return this.blastT > 0 ? 1.35 : 0;
       if (this.blastT > 0) return 1.6;
-      if (!o.on) return 1;
+      // Chaos and Insane rings blow harder
+      const fk = [1, 1.15, 1.3][ringK(L)];
+      if (!o.on) return fk;
       const per = o.on + o.off, u = ((t + (o.ph || 0)) % per + per) % per;
-      return u < o.on ? 1 : 0;
+      return u < o.on ? fk : 0;
     },
     update(t) {
       const dt = clamp(t - this.lastT, 0, 0.1); this.lastT = t;
@@ -6839,11 +7046,23 @@ function eventsTick(dt) {
         Game.stampT = (Game.stampT == null ? 2 : Game.stampT) - dt;
         if (Game.stampT <= 0) { const i = bossStampTarget(L); Game.stampT = i >= 0 ? (ph >= 5 ? 3 : 4.4) : 0.6; if (i >= 0) bossEmit('g', i); }
       }
+    } else if (L.def.gen) {
+      // Parcours surprise Insane: binders (or gusts) every few seconds, and the stamp waiting over a landing
+      // comes down as soon as someone stands near it
+      Game.evT = (Game.evT == null ? 5 : Game.evT) - dt;
+      if (Game.evT <= 0) {
+        Game.evT = 4.6 + Math.random() * 1.6;
+        if (L.fans.length && Math.random() < 0.3) bossEmit('w', 0); else bossEmit('r', 1 + Math.floor(Math.random() * 99999));
+      }
+      if (L.stamps && L.stamps.length) {
+        Game.stampT = (Game.stampT == null ? 3 : Game.stampT) - dt;
+        if (Game.stampT <= 0) { const i = bossStampTarget(L); Game.stampT = i >= 0 ? 2.6 : 0.4; if (i >= 0) bossEmit('g', i); }
+      }
     } else {
       // Ring Insane: something nasty every few seconds, faster once the edge starts falling
       Game.evT = (Game.evT == null ? 5 : Game.evT) - dt;
       if (Game.evT <= 0) {
-        Game.evT = (Game.ringDrop > 0 ? 3 : 4.2) + Math.random() * 1.2;
+        Game.evT = (Game.ringDrop > 0 ? 2.2 : 2.8) + Math.random() * 0.9;
         const opts = ['r'];
         if (L.stamps && L.stamps.some(q => !q.busy(Game.lt))) opts.push('g', 'g');
         if (L.fans.length) opts.push('w');
@@ -6883,8 +7102,10 @@ function defOf(md, lv) { return LEVEL_DEFS[defIndex(md, lv)]; }
 // ---------- Ring ----------
 const RING = { dropStart: 40, dropEvery: 14, warn: 2.2, limit: 150, placePts: [5, 3, 1, 0], koPts: 2 };
 // Chaos: more obstacles (see .hard() in levels.js) and the edge falls sooner
-const ringDropStart = L => (L && L.insane ? 15 : L && L.chaos ? 26 : RING.dropStart);
-const ringDropEvery = L => (L && L.insane ? 7 : L && L.chaos ? 10 : RING.dropEvery);
+const ringDropStart = L => (L && L.insane ? 10 : L && L.chaos ? 20 : RING.dropStart);
+const ringDropEvery = L => (L && L.insane ? 5 : L && L.chaos ? 8 : RING.dropEvery);
+// Chaos and Insane rings: the robots move faster, shove harder and more often, and so do you in Insane
+const ringK = L => (L && L.def.ring ? (L.insane ? 2 : L.chaos ? 1 : 0) : 0);
 function ringSetup(L) {
   Game.ringDrop = 0; Game.out = false; Game.outAt = 0;
   if (Net.solo) {
@@ -7270,10 +7491,13 @@ function sanitizeGs(g) {
   };
 }
 
+// Parcours surprise: one record per layout and difficulty
+function recKey(seed, diff) { return 'rec2-' + seed + '-' + (diff | 0); }
+function diffTag(diff) { return diff ? ' en ' + GEN.diffNames[diff | 0] : ''; }
 function setLevel(idx, md, o) {
   o = o || {};
   if (Game.level) { scene.remove(Game.level.root); Game.level.dispose(); }
-  const base = LEVEL_DEFS[idx], def = base.gen ? genCourse(o.seed || 1) : base;
+  const base = LEVEL_DEFS[idx], def = base.gen ? genCourse(o.seed || 1, o.diff | 0) : base;
   const L = new Level(def, idx, { defense: md === 'defense', solo: Net.solo, mode: md, diff: o.diff | 0 });
   Game.level = L; Game.levelIdx = idx;
   scene.add(L.root);
@@ -7503,9 +7727,12 @@ function renderLobby(force) {
   }
   for (const b of lb.children) { b.setAttribute('aria-pressed', +b.dataset.v === gs.lv ? 'true' : 'false'); b.disabled = !Game.isHost; }
   $('#lbl-level').textContent = gs.md === 'ring' ? 'Arène de départ' : 'Niveau de départ';
-  $('#set-diff').hidden = gs.md !== 'ring';
+  $('#set-diff').hidden = gs.md === 'defense';
+  $('#lbl-diff').textContent = gs.md === 'ring' ? 'Difficulté du ring' : 'Difficulté du parcours surprise';
   for (const b of $('#seg-diff').children) { b.setAttribute('aria-pressed', +b.dataset.v === (gs.hd | 0) ? 'true' : 'false'); b.disabled = !Game.isHost; }
-  $('#diff-hint').textContent = ['Normal : les arènes de base.', 'Chaos : chaque arène reçoit des pièges en plus (ventilateurs, balayeurs, tourelles, ennemis) et le bord s\'effondre plus tôt.', 'Insane : tout le Chaos, encore plus de pièges, des tampons géants, des pluies de dossiers et des rafales de vent au hasard. Le bord tombe presque tout de suite.'][gs.hd | 0];
+  $('#diff-hint').textContent = gs.md === 'ring'
+    ? ['Normal : les arènes de base.', 'Chaos : chaque arène reçoit des pièges en plus (ventilateurs, balayeurs, tourelles, ennemis), de la colle sur le bord intérieur, et le bord s\'effondre plus tôt.', 'Insane : tout le Chaos, encore plus de pièges, des tampons géants, des accélérateurs qui t\'envoient vers le vide, des pluies d\'objets et des rafales de vent. Le bord tombe presque tout de suite.'][gs.hd | 0]
+    : ['Normal : le parcours surprise de base. Les autres niveaux ne changent pas.', 'Chaos : un tracé plus long, des trous plus larges, des plateformes plus petites, des pièges plus rapides, de la colle et moins de points de contrôle. Les autres niveaux ne changent pas.', 'Insane : tout le Chaos en plus long, des tampons géants sur les paliers et des pluies d\'objets qui te visent. Les autres niveaux ne changent pas.'][gs.hd | 0];
   const def = defOf(gs.md, gs.lv);
   const hints = {
     race: 'Départ simultané, et tous les coups sont permis : pousse, attrape, lance. Le premier au portail marque 10 points, puis 7, 5 et 3. Chaque éclat rapporte 1 point.',
@@ -7514,7 +7741,7 @@ function renderLobby(force) {
     defense: 'Un joueur défend, les autres courent. Le défenseur survole le parcours et déclenche tourelles, ventilateurs, trappes, pistons et portes. Le rôle tourne à chaque niveau.' + (players.length < 2 ? ' Il faut au moins 2 joueurs.' : '')
   };
   $('#mode-hint').textContent = hints[gs.md];
-  $('#level-hint').textContent = '/ ' + def.name + ' · ' + def.sub + (def.boss ? ' · le plus difficile' : '') + (gs.md === 'defense' && Game.gs ? ' · Premier défenseur : ' + ((Game.players[(gs.dc || 0) % Math.max(1, players.length)] || {}).presence || {}).n : '');
+  $('#level-hint').textContent = '/ ' + def.name + ' · ' + def.sub + (def.boss ? ' · le plus difficile' : '') + (def.gen && gs.hd && gs.md !== 'defense' ? ' · ' + GEN.diffNames[gs.hd] : '') + (gs.md === 'defense' && Game.gs ? ' · Premier défenseur : ' + ((Game.players[(gs.dc || 0) % Math.max(1, players.length)] || {}).presence || {}).n : '');
   const guests = players.filter(p => p !== host);
   const ready = guests.filter(p => p.presence.rd).length;
   $('#ready-count').textContent = solo ? '' : (Game.isHost
@@ -7552,7 +7779,7 @@ function startLevel(lv, md, sq) {
   const mePeer = (Game.players.find(p => p.sameTab) || {}).peer || null;
   Game.role = md === 'defense' && Game.gs && Game.gs.df && Game.gs.df === mePeer ? 'def' : 'run';
   const gs0 = Game.gs || {};
-  const L = setLevel(di, md, { seed: gs0.seed, diff: md === 'ring' ? gs0.hd : 0 });
+  const L = setLevel(di, md, { seed: gs0.seed, diff: md === 'ring' || (LEVEL_DEFS[di].gen && md !== 'defense') ? gs0.hd : 0 });
   Game.bossPhase = 0; Game.bkN = 0; Game.bkLog = []; Game.bkSeen = 0; Game.rainT = null; Game.stampT = null; Game.evT = 5;
   Game.myGems = new Set(); Game.union = new Set(); Game.checkIdx = -1; Game.done = false; Game.ft = null;
   Game.obs = new Set(); Game.obsU = new Set(); Game.obsKnown = new Set(); Game.ballSendT = 0; Game.lifts = 0; Game.boosts = 0; Game.missionKey = '';
@@ -7730,8 +7957,8 @@ function reachFinish() {
   P.facingTarget = 0; P.blob.happy = 0.001;
   const L0 = Game.level;
   if (L0.def.gen && L0.def.seed && Game.mode !== 'defense') {
-    const k = 'rec' + L0.def.seed, best = +store.get(k, 0);
-    if (!best || Game.ft < best) { store.set(k, Game.ft); if (best) setTimeout(() => toast('Nouveau record sur le tracé n° ' + L0.def.seed, 2600), 3300); }
+    const k = recKey(L0.def.seed, L0.def.diff), best = +store.get(k, 0);
+    if (!best || Game.ft < best) { store.set(k, Game.ft); if (best) setTimeout(() => toast('Nouveau record sur le tracé n° ' + L0.def.seed + diffTag(L0.def.diff), 2600), 3300); }
   }
   if (Game.mode === 'race') {
     const before = Game.players.filter(p => !p.sameTab && p.presence.sq === Game.sq && p.presence.st === 'done' && typeof p.presence.ft === 'number' && p.presence.ft < Game.ft).length;
@@ -7777,12 +8004,15 @@ function handleEvents() {
     if (ev === 'jump') { SFX.jump(); P.blob.impulse(3.2); FX.burst(feet, TOK.hair, 5, 2.2, 0.07, 0.5, 0.35, 4); }
     else if (ev === 'djump') { SFX.djump(); P.blob.spin(); P.blob.impulse(2.4); FX.burst(feet, TOK.white, 8, 3, 0.07, -1, 0.4, 2); }
     else if (ev === 'bounce') { SFX.bounce(); P.blob.impulse(4.5); FX.burst(feet, TOK.vivid, 12, 4, 0.08, 3, 0.6); }
+    else if (ev && ev.slow) { SFX.squish(); P.blob.impulse(-4); P.blob.jiggle(8); if (Math.random() < 0.35) shout(18); FX.burst(feet, TOK.white, 6, 2, 0.08, 0.5, 0.4, 6); }
     else if (ev && ev.land != null && ev.land > 6) { SFX.land(); P.blob.impulse(-clamp(ev.land * 0.33, 0, 7)); P.blob.jiggle(ev.land * 0.6); FX.burst(feet, TOK.hair, 7, 2.6, 0.08, 0.6, 0.4, 5); }
     else if (ev === 'dive') { SFX.whoosh(); P.blob.jiggle(8); }
     else if (ev === 'flop') { SFX.splat(); P.blob.impulse(-6); P.blob.jiggle(12); FX.burst(feet, TOK.hair, 10, 3.5, 0.09, 0.8, 0.45, 5); }
     else if (ev === 'stomp') { SFX.squish(); SFX.boing(); P.blob.impulse(4); FX.burst(feet, TOK.white, 10, 3, 0.08, 0.5, 0.4, 4); }
     else if (ev === 'tackle') { SFX.whack(); P.blob.jiggle(10); FX.burst(new THREE.Vector3(P.pos.x, P.pos.y + 0.6, P.pos.z), TOK.peach, 10, 4, 0.09, 1, 0.45, 6); }
     else if (ev === 'bump') { SFX.honk(); P.blob.jiggle(10); P.blob.impulse(-2.5); }
+    else if (ev === 'launch') { SFX.lift(); P.blob.spin(); P.blob.impulse(5); shout(19); FX.burst(feet, TOK.vivid, 16, 5, 0.1, 4, 0.7); }
+    else if (ev && ev.hit === 'boost') { SFX.whoosh(); P.blob.impulse(2); P.blob.jiggle(6); FX.burst(feet, TOK.peach, 10, 3, 0.08, 1, 0.4); }
     else if (ev === 'boost') { SFX.lift(); P.blob.spin(); P.blob.impulse(5); shout(13); FX.burst(feet, TOK.peach, 14, 4, 0.09, 4, 0.6); }
     else if (ev && ev.hit === 'sweep') { SFX.whack(); P.blob.jiggle(18); P.blob.scare(1); shout(11); FX.burst(new THREE.Vector3(P.pos.x, P.pos.y + 0.6, P.pos.z), TOK.vivid, 10, 4, 0.08, 2, 0.5); }
     else if (ev && ev.hit === 'bumper') { SFX.boing(); P.blob.jiggle(14); P.blob.impulse(-4); }
@@ -8265,9 +8495,9 @@ function showResults(gs) {
   }
   // Parcours surprise: personal record on this layout
   if (!final && def.gen && gs.seed) {
-    const rec = +store.get('rec' + gs.seed, 0);
+    const rec = +store.get(recKey(gs.seed, gs.hd), 0), tag = gs.seed + diffTag(gs.hd);
     const s = $('#res-sub');
-    s.textContent += rec ? ' Ton record sur le tracé n° ' + gs.seed + ' : ' + fmtTime(rec) + '.' : ' Tracé n° ' + gs.seed + ' : rejoue-le pour poser un record.';
+    s.textContent += rec ? ' Ton record sur le tracé n° ' + tag + ' : ' + fmtTime(rec) + '.' : ' Tracé n° ' + tag + ' : rejoue-le pour poser un record.';
   }
   renderResultButtons(gs);
 }
@@ -8464,6 +8694,7 @@ function musicTick() {
     name = L.def.music || 'lobby';
     if (L.boss) I = Game.bossPhase || 0;
     else if (L.def.ring) I = Math.min(2, (Game.ringDrop || 0) + (L.insane ? 1 : 0));
+    else if (L.def.gen) I = L.def.diff | 0;
   }
   MUSIC.set(name, I);
 }
