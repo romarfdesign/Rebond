@@ -140,7 +140,7 @@ kbd{font:600 12px/1 var(--f-text);padding:6px 9px;border-radius:8px;background:r
 .tag.ok{background:var(--white);color:var(--ink)}
 .tag.host{background:transparent;border:1px solid rgba(255,255,255,.3)}
 .setting{min-width:0}
-.mode-cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.mode-cards{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
 .mode,.lvl{border:1px solid var(--glass-line);background:linear-gradient(180deg,rgba(255,255,255,.08),rgba(255,255,255,.02));color:var(--white);text-align:left;min-width:0;
   transition:border-color .15s,transform .1s}
 .mode{display:flex;flex-direction:column;align-items:flex-start;gap:4px;padding:12px 14px;border-radius:16px}
@@ -307,6 +307,22 @@ kbd{font:600 12px/1 var(--f-text);padding:6px 9px;border-radius:8px;background:r
 .res-board-me .hit{color:var(--vivid,#FF6633)}
 .lb-box .lb-list{max-width:420px}
 
+/* Ring events: warning, then the event and its countdown */
+.evbanner{position:fixed;left:50%;top:64px;transform:translateX(-50%);z-index:25;padding:9px 18px;border-radius:999px;font:700 16px/1.2 var(--f-display);
+  color:#fff;background:rgba(15,44,70,.82);border:1px solid rgba(255,102,51,.7);box-shadow:0 0 0 0 rgba(255,102,51,.5);animation:evpulse 1s infinite;pointer-events:none;white-space:nowrap}
+.evbanner.live{animation:none;background:rgba(255,102,51,.92);border-color:rgba(255,255,255,.3)}
+@keyframes evpulse{0%{box-shadow:0 0 0 0 rgba(255,102,51,.55)}100%{box-shadow:0 0 0 14px rgba(255,102,51,0)}}
+@media (prefers-reduced-motion: reduce){.evbanner{animation:none}}
+
+/* Boss mode: the director's health */
+.bossbar{position:fixed;left:50%;top:calc(16px + env(safe-area-inset-top,0px));transform:translateX(-50%);width:min(440px,46vw);z-index:24;padding:10px 14px 12px;border-radius:18px;
+  background:rgba(15,44,70,.78);border:1px solid rgba(255,255,255,.14);pointer-events:none}
+.bossbar-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font:700 14px/1.2 var(--f-display);color:#fff}
+.bossbar-head #bossbar-info{font:500 12px/1.2 var(--f-text);opacity:.8;font-variant-numeric:tabular-nums}
+.bossbar-track{height:10px;margin-top:7px;border-radius:999px;background:rgba(255,255,255,.12);overflow:hidden}
+#bossbar-fill{height:100%;width:100%;border-radius:999px;background:linear-gradient(90deg,#DC7046,#FF6633);transition:width .25s ease}
+.bossbar-hp{display:block;margin-top:5px;font:600 11px/1 var(--f-text);opacity:.7;text-align:right;font-variant-numeric:tabular-nums}
+
 </style>
 <canvas id="gl" tabindex="-1" aria-label="Scène du jeu"></canvas>
 
@@ -399,6 +415,7 @@ kbd{font:600 12px/1 var(--f-text);padding:6px 9px;border-radius:8px;background:r
           <button type="button" class="mode" data-v="race" aria-pressed="true"><span class="mode-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 21V4"/><path d="M6 4h11l-2 3.5L17 11H6"/></svg></span><span class="mode-name">Course</span><span class="mode-line">Premier au portail</span></button>
           <button type="button" class="mode" data-v="coop" aria-pressed="false"><span class="mode-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="8" r="3"/><circle cx="16" cy="8" r="3"/><path d="M3 20c0-3 2.2-5 5-5s5 2 5 5M11 20c0-3 2.2-5 5-5s5 2 5 5"/></svg></span><span class="mode-name">Coopération</span><span class="mode-line">Tous ensemble</span></button>
           <button type="button" class="mode" data-v="ring" aria-pressed="false"><span class="mode-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="2"/><path d="M3.5 9h17M3.5 15h17"/></svg></span><span class="mode-name">Ring</span><span class="mode-line">Dernier debout</span></button>
+          <button type="button" class="mode" data-v="boss" aria-pressed="false"><span class="mode-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="6.5"/><path d="M15.5 7.5 18 5M17 3.5l1.5 1.5"/></svg></span><span class="mode-name">Boss</span><span class="mode-line">Tous contre lui</span></button>
           <button type="button" class="mode" data-v="defense" aria-pressed="false"><span class="mode-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4.5 6v5.5c0 4.6 3.1 8 7.5 9.5 4.4-1.5 7.5-4.9 7.5-9.5V6z"/><path d="m9 12 2 2 4-4"/></svg></span><span class="mode-name">Défense</span><span class="mode-line">Un contre tous</span></button>
         </div>
         <p class="hint" id="mode-hint"></p>
@@ -448,6 +465,8 @@ kbd{font:600 12px/1 var(--f-text);padding:6px 9px;border-radius:8px;background:r
   <ul class="hud-mission" id="hud-mission" hidden></ul>
   <div class="hud-center"><div id="countdown" class="countdown" aria-live="polite"></div><div id="toast" class="toast" role="status"></div></div>
   <div id="bigword" class="bigword" aria-hidden="true"></div>
+  <div id="evbanner" class="evbanner" role="status" hidden></div>
+  <div id="bossbar" class="bossbar" hidden><div class="bossbar-head"><span class="bossbar-name">/ Le directeur</span><span id="bossbar-info"></span></div><div class="bossbar-track"><div id="bossbar-fill"></div></div><span id="bossbar-hp" class="bossbar-hp"></span></div>
   <div class="banner" id="banner" hidden></div>
   <div class="def-panel" id="def-panel" hidden>
     <span class="eyebrow eyebrow-solid">Défenseur</span>
@@ -677,6 +696,7 @@ const SFX = {
   shot() { this.noise(0.12, 0.22, 500); this.tone(180, 70, 0.18, 'square', 0.06); },
   fanOn() { this.noise(0.6, 0.06, 2200); },
   zap() { this.tone(900, 300, 0.2, 'sawtooth', 0.05); },
+  alarm() { [0, 0.28, 0.56].forEach(d => this.tone(880, 660, 0.22, 'square', 0.045, d)); },
   boss() { this.tone(110, 70, 0.6, 'sawtooth', 0.09); this.tone(165, 90, 0.5, 'square', 0.05, 0.08); this.noise(0.35, 0.12, 300); },
   slam() { this.noise(0.3, 0.35, 260); this.tone(90, 40, 0.35, 'sine', 0.2); },
   clutch() { this.tone(300, 1200, 0.25, 'triangle', 0.1); this.noise(0.25, 0.08, 1800); this.tone(1200, 900, 0.3, 'sine', 0.05, 0.22); },
@@ -1571,6 +1591,12 @@ class Level {
       else if (o.type === 'rain') this.addRain(o);
       else if (o.type === 'stamp') this.addStamp(o);
       else if (o.type === 'booster') addBooster(this, o);
+      else if (o.type === 'hammer') this.addHammer(o);
+      else if (o.type === 'roller') this.addRoller(o);
+      else if (o.type === 'laser') this.addLaser(o);
+      else if (o.type === 'zones') this.addZones(o);
+      else if (o.type === 'spin') this.addSpinner(o);
+      else if (o.type === 'hatch') this.addHatches(o);
       else if (o.type === 'foe' && (!o.solo || opts.solo)) this.addFoe(o);
     });
     this.addGizmos();
@@ -4069,6 +4095,297 @@ function fanCage(L, r, ringMat, bladeMat, hubMat) {
   };
 })();
 
+// ===================== Boss mode: everyone against the director, with bombs and throws =====================
+// The director stands on a pedestal in the middle of his blotter. Bombs drop on the tiles (the host calls
+// them out, `bk` kind 'b'); grab one (left click / F), throw it with a push (right click / R), or get
+// yourself thrown at him by a teammate (a body slam), ideally holding a bomb you let go at the last moment.
+// Damage is counted by whoever dealt it (presence `bd`, cumulative), so every screen adds up the same HP.
+// Presence: cb = bomb I carry, bt = [n, id, x, y, z, vx, vy, vz] my last throw, bx = [n, id] a bomb that blew up on me.
+const FIGHT = {
+  tile: 3.5, top: 14, limit: [240, 225, 210], hpBase: 60, hpPer: 30, hpK: [1, 1.25, 1.5],
+  bombDmg: 10, slamDmg: 6, bombEvery: [6, 6.5, 7], maxBombs: 3, fuse: 8, groundFuse: 1.3, g: 22,
+  bodyR: 1.6, bodyH: 5.2
+};
+const FIGHT_PHASES = [
+  null,
+  { say: 'Vous osez venir jusqu\'ici ?', toast: 'Le directeur frappe son bureau : sautez par-dessus les ondes' },
+  { say: 'Je vais tout casser !', toast: 'Le directeur démolit son bureau : le bord s\'effondre' },
+  { say: 'Sécurité !', toast: 'Ses robots arrivent, et ses tampons géants avec' },
+  { say: 'Plus vite que ça !', toast: 'Le directeur accélère : ondes doubles et tampons en rafale' },
+  { say: 'Vous êtes tous virés !', toast: 'Le directeur est furieux : il ne reste presque plus rien du bureau' }
+];
+function fight1() {
+  const b = LB('direction', 'Le face-à-face', 'Le directeur en personne : bombes, lancers et travail d\'équipe');
+  const T = FIGHT.tile, top = FIGHT.top;
+  b.boss({ x: 0, top, z: 0, scale: 6, at: [], arena: true });
+  for (let i = 0; i < 7; i++) for (let j = 0; j < 7; j++) {
+    const dd = Math.max(Math.abs(i - 3), Math.abs(j - 3)), x = (i - 3) * T, z = (j - 3) * T;
+    if (dd === 0) b.start(x, top, z, T, T);
+    else b.p(x, top, z, T, T, { kind: 'crumble', noTouch: true, ringTile: 3 - dd, fightRing: dd, fightIdx: i * 7 + j, nosup: true, deskTile: true, route: false });
+  }
+  const d = b.def;
+  d.start.route = true; d.start.nosup = true; d.start.fightIdx = 24;
+  // the director's body: you bump into him (and bombs blow up on him)
+  b.p(0, top + FIGHT.bodyH, 0, FIGHT.bodyR * 2, FIGHT.bodyR * 2, { h: FIGHT.bodyH, overlay: true, route: false, nosup: true, bossBody: true });
+  b.deco({ type: 'deskBase', x: 0, top, z: 0, w: 7 * T, d: 7 * T });
+  const reg = [-11.5, 11.5, -11.5, 11.5];
+  b.phase(1)
+    .wave(0, top, 0, 12.6, { speed: 7, per: 4.6, mech: false })
+    .phase(2)
+    .rain({ mech: false })
+    .phase(3)
+    .foe('robot', -7, top, -7, reg).foe('robot', 7, top, 7, reg)
+    .stamp(-7, top, 7, T - 0.2, T - 0.2, { mech: false }).stamp(7, top, -7, T - 0.2, T - 0.2, { mech: false }).stamp(-7, top, -7, T - 0.2, T - 0.2, { mech: false }).stamp(7, top, 7, T - 0.2, T - 0.2, { mech: false })
+    .phase(4)
+    .wave(0, top, 0, 12.6, { speed: 9, per: 3.6, ph: 1.8, mech: false })
+    .turret(0, top, 0, { vis: 'boss', noBase: true, mech: false, range: 40, rate: 2.2, burst: 3, spread: true, shotSpeed: 18, shotLife: 4, shotScale: 1.6, label: 'Tampon' })
+    .phase(5)
+    .foe('robot', 0, top, -7, reg).foe('robot', 0, top, 7, reg)
+    .phase(0);
+  d.fight = true; d.arenaFight = true;
+  d.spawnPts = [[-7, -7], [7, 7], [7, -7], [-7, 7]];
+  d.killY = top - 8;
+  d.music = 'boss';
+  return d;
+}
+
+// ---------- state ----------
+function fightInit(L, diff, players) {
+  if (!L.def.fight) { Game.fight = null; return; }
+  const n = clamp(players | 0, 1, 4), k = FIGHT.hpK[clamp(diff | 0, 0, 2)];
+  Game.fight = {
+    max: Math.round((FIGHT.hpBase + FIGHT.hpPer * n) * k), dealt: 0, diff: diff | 0, limit: FIGHT.limit[clamp(diff | 0, 0, 2)],
+    bombs: new Map(), carry: null, btN: 0, bxN: 0, seen: new Map(), bombT: 3, lastCollapse: -1, over: null, hpShown: -1, kit: null
+  };
+  P.thrownT = 0;
+  fightHud();
+}
+function fightHP() {
+  const F = Game.fight;
+  if (!F) return 0;
+  let sum = F.dealt;
+  for (const p of Game.players) if (!p.sameTab && p.presence.sq === Game.sq) sum += Math.max(0, +p.presence.bd || 0);
+  return Math.max(0, F.max - sum);
+}
+function fightPhase(hp) { const F = Game.fight; return hp <= 0 ? 5 : clamp(1 + Math.floor((1 - hp / F.max) * 5), 1, 5); }
+
+// ---------- bombs ----------
+function bombKit(L) {
+  const F = Game.fight;
+  if (F.kit) return F.kit;
+  const body = L.pbr('bombBody', { color: '#1C2128', roughness: 0.35, metalness: 0.3 }), cap = L.pbr('bombCap', { color: '#8A8F96', metalness: 0.6, roughness: 0.3 });
+  const ringGeo = L.ownGeo(new THREE.RingGeometry(0.75, 0.92, 32)); ringGeo.rotateX(-Math.PI / 2);
+  F.kit = {
+    make() {
+      const g = new THREE.Group();
+      g.add(L.mesh(sphGeo(0.42, 18, 14), body, { cast: true }));
+      g.add(L.mesh(cylGeo(0.12, 0.14, 0.14, 10), cap, { p: [0, 0.44, 0] }));
+      const spark = L.glow(TOK.vivid, 0.7, 0.9); spark.position.y = 0.6; g.add(spark);
+      const rm = new THREE.MeshBasicMaterial({ color: col(TOK.vivid), transparent: true, opacity: 0.8, depthWrite: false, toneMapped: false }); L.own.push(rm);
+      const ring = new THREE.Mesh(ringGeo, rm); ring.renderOrder = 3;
+      L.root.add(g, ring);
+      return { g, spark, ring, rm };
+    }
+  };
+  return F.kit;
+}
+function bombSpawn(id, idx) {
+  const L = Game.level, F = Game.fight;
+  if (!F || F.bombs.has(id)) return;
+  const i = Math.floor(idx / 7), j = idx % 7, x = (i - 3) * FIGHT.tile, z = (j - 3) * FIGHT.tile;
+  const v = bombKit(L).make();
+  F.bombs.set(id, { id, x, y: FIGHT.top + 12, z, vx: 0, vy: -4, vz: 0, st: 'fly', by: null, t: Game.lt, v, bounced: true, drop: true });
+}
+function bombGone(b) { b.st = 'gone'; b.v.g.visible = false; b.v.ring.visible = false; }
+function bombBoom(b, onBoss) {
+  const L = Game.level;
+  FX.burst(new THREE.Vector3(b.x, b.y, b.z), TOK.vivid, 26, 8, 0.14, 4, 0.7);
+  FX.burst(new THREE.Vector3(b.x, b.y, b.z), '#22262C', 14, 6, 0.12, 5, 0.9);
+  const d = Math.hypot(P.pos.x - b.x, P.pos.y + 0.5 - b.y, P.pos.z - b.z);
+  if (Game.screen === 'play') { SFX.slam(); SFX.boing(); if (d < 14) Cam.shake = Math.max(Cam.shake, onBoss ? 0.35 : 0.25); }
+  if (!onBoss && d < 2.6 && !Game.done && !P.frozen) {
+    const nx = (P.pos.x - b.x) / (d || 1), nz = (P.pos.z - b.z) / (d || 1);
+    knock(nx * 10, nz * 10, 8, 0.6); P.stunT = Math.max(P.stunT, 0.45); interactDrop();
+  }
+  if (onBoss && L.boss) { L.boss.angry(); L.boss.hurt && L.boss.hurt(); }
+  bombGone(b);
+}
+function fightPickup() {
+  const F = Game.fight;
+  if (!F || F.carry != null) return false;
+  let best = null, bd = 1.5;
+  for (const b of F.bombs.values()) {
+    if (b.st !== 'ground') continue;
+    const d = Math.hypot(b.x - P.pos.x, b.z - P.pos.z);
+    if (d < bd && Math.abs(b.y - P.pos.y) < 1.6) { bd = d; best = b; }
+  }
+  if (!best) return false;
+  F.carry = best.id; best.st = 'carried'; best.by = Game.myPeer; best.t = Game.lt;
+  Net.set({ cb: best.id });
+  SFX.grabbed(); P.blob.reach();
+  toast('Bombe ! Clic droit pour la lancer', 1500);
+  return true;
+}
+function fightThrow() {
+  const F = Game.fight;
+  if (!F || F.carry == null) return false;
+  const b = F.bombs.get(F.carry);
+  F.carry = null;
+  if (!b) { Net.set({ cb: null }); return true; }
+  const f = P.facingTarget != null ? P.facingTarget : P.facing;
+  b.x = P.pos.x + Math.sin(f) * 0.5; b.y = P.pos.y + 1.4; b.z = P.pos.z + Math.cos(f) * 0.5;
+  b.vx = Math.sin(f) * 13 + P.vel.x * 0.6; b.vz = Math.cos(f) * 13 + P.vel.z * 0.6; b.vy = 7 + Math.max(0, P.vel.y) * 0.4;
+  b.st = 'fly'; b.by = Game.myPeer; b.t = Game.lt; b.bounced = false; b.drop = false;
+  F.btN++;
+  Net.set({ cb: null, bt: [F.btN, b.id, r2(b.x), r2(b.y), r2(b.z), r1(b.vx), r1(b.vy), r1(b.vz)] });
+  P.blob.punch(1); SFX.whoosh();
+  return true;
+}
+function fightDeal(dmg, why) {
+  const F = Game.fight;
+  if (!F || F.over) return;
+  F.dealt += dmg;
+  Net.set({ bd: F.dealt });
+  const L = Game.level;
+  if (L.boss) L.boss.say(['Aïe !', 'Mon bureau !', 'Vous allez me le payer', 'Ouille', 'Insolents !'][Math.floor(Math.random() * 5)], 1.6);
+  toast('-' + dmg + ' · ' + why, 1300);
+}
+
+// ---------- per frame ----------
+function fightTick(dt) {
+  const F = Game.fight, L = Game.level;
+  if (!F || !L || !L.def.fight) return;
+  const t = Game.lt, top = FIGHT.top, B = L.boss;
+  if (P.thrownT > 0) P.thrownT -= dt;
+  // remote players: what they carry, throw, and blow up
+  for (const p of Game.players) {
+    if (p.sameTab || p.presence.sq !== Game.sq) continue;
+    const pr = p.presence, s = F.seen.get(p.peer) || { bt: 0, bx: 0 };
+    if (pr.cb != null) {
+      const b = F.bombs.get(+pr.cb);
+      if (b && b.st !== 'gone') {
+        // two grabbed the same bomb: the lower id keeps it
+        if (F.carry === b.id && p.peer < Game.myPeer) { F.carry = null; Net.set({ cb: null }); }
+        if (F.carry !== b.id) { b.st = 'carried'; b.by = p.peer; }
+      }
+    }
+    if (Array.isArray(pr.bt) && +pr.bt[0] > s.bt) {
+      s.bt = +pr.bt[0];
+      const b = F.bombs.get(+pr.bt[1]);
+      if (b && b.st !== 'gone') Object.assign(b, { x: +pr.bt[2], y: +pr.bt[3], z: +pr.bt[4], vx: +pr.bt[5], vy: +pr.bt[6], vz: +pr.bt[7], st: 'fly', by: p.peer, t, bounced: false, drop: false });
+    }
+    if (Array.isArray(pr.bx) && +pr.bx[0] > s.bx) { s.bx = +pr.bx[0]; const b = F.bombs.get(+pr.bx[1]); if (b && b.st !== 'gone') bombBoom(b, false); }
+    F.seen.set(p.peer, s);
+  }
+  // bombs
+  for (const b of F.bombs.values()) {
+    if (b.st === 'gone') continue;
+    if (b.st === 'carried') {
+      let c = null;
+      if (b.by === Game.myPeer) c = P.pos;
+      else { const r = Game.remotes.get(b.by); if (r && r.st === 'play') c = r.rp; }
+      if (!c) { b.st = 'fly'; b.vx = b.vz = 0; b.vy = 0; b.bounced = true; b.t = t; }
+      else {
+        b.x = c.x; b.y = c.y + 1.45; b.z = c.z;
+        // too long in your hands: it goes off
+        if (b.by === Game.myPeer && t - b.t > FIGHT.fuse) { F.carry = null; F.bxN++; Net.set({ cb: null, bx: [F.bxN, b.id] }); toast('Trop tard !', 1200); bombBoom(b, false); continue; }
+      }
+    } else if (b.st === 'fly') {
+      const n = Math.max(1, Math.ceil(dt * 120)), h = dt / n;
+      for (let k = 0; k < n && b.st === 'fly'; k++) {
+        b.vy -= FIGHT.g * h; b.x += b.vx * h; b.y += b.vy * h; b.z += b.vz * h;
+        // on the director: boom, and whoever threw it gets the damage
+        if (!b.drop && Math.hypot(b.x, b.z) < FIGHT.bodyR + 0.42 && b.y < top + FIGHT.bodyH + 0.4) {
+          if (b.by === Game.myPeer) fightDeal(FIGHT.bombDmg, 'bombe');
+          bombBoom(b, true); break;
+        }
+        const gy = L.groundBelow(b.x, b.y + 0.3, b.z);
+        if (isFinite(gy) && b.y - 0.42 <= gy && b.vy < 0) {
+          b.y = gy + 0.42;
+          if (b.drop) { b.st = 'ground'; b.t = t; b.drop = false; }
+          else if (!b.bounced) { b.bounced = true; b.vy = -b.vy * 0.35; b.vx *= 0.55; b.vz *= 0.55; }
+          else { b.st = 'ground'; b.t = t; b.fuseAt = t + FIGHT.groundFuse; }
+        }
+        if (b.y < L.killY) { bombGone(b); break; }
+      }
+    } else if (b.st === 'ground') {
+      const gy = L.groundBelow(b.x, b.y + 0.3, b.z);
+      if (!isFinite(gy) || gy < b.y - 0.6) { b.st = 'fly'; b.vx = b.vz = 0; b.vy = 0; b.bounced = true; b.drop = false; }
+      else if (b.fuseAt && t >= b.fuseAt) { bombBoom(b, false); continue; }
+    }
+    if (b.st === 'gone') continue;
+    b.v.g.position.set(b.x, b.y, b.z);
+    b.v.spark.material.opacity = 0.6 + 0.4 * Math.sin(t * 30);
+    b.v.ring.visible = b.st === 'ground';
+    if (b.st === 'ground') { b.v.ring.position.set(b.x, b.y - 0.38, b.z); b.v.rm.opacity = 0.5 + 0.35 * Math.sin(t * (b.fuseAt ? 18 : 5)); }
+  }
+  // thrown at the director by a teammate: a body slam (with a bomb, even better)
+  if (P.thrownT > 0 && !Game.done && Math.hypot(P.pos.x, P.pos.z) < FIGHT.bodyR + PH.r + 0.25 && P.pos.y < top + FIGHT.bodyH) {
+    P.thrownT = 0;
+    let dmg = FIGHT.slamDmg;
+    if (F.carry != null) { const b = F.bombs.get(F.carry); F.carry = null; Net.set({ cb: null }); if (b) { dmg += FIGHT.bombDmg; b.x = P.pos.x; b.y = P.pos.y + 1; b.z = P.pos.z; bombBoom(b, true); } }
+    fightDeal(dmg, dmg > FIGHT.slamDmg ? 'boulet piégé' : 'boulet de canon');
+    const d = Math.hypot(P.pos.x, P.pos.z) || 1;
+    knock(P.pos.x / d * 9, P.pos.z / d * 9, 8, 0.6);
+    clutchMoment(dmg > FIGHT.slamDmg ? 'Boulet piégé !' : 'Boulet de canon !', P.pos, true);
+  }
+  // the blotter falls apart: the outer ring from phase 2, the next one from phase 4, almost everything in phase 5
+  const ph = Game.bossPhase || 0;
+  if (ph >= 2 && Game.running) {
+    const per = ph >= 5 ? 1.1 : ph >= 4 ? 1.8 : 2.6, k = Math.floor(t / per);
+    if (k !== F.lastCollapse) {
+      F.lastCollapse = k;
+      const maxRing = ph >= 4 ? 2 : 3;
+      const tiles = L.crumbles.filter(q => q.def.fightRing >= (ph >= 5 ? 2 : maxRing) && q.cs === 'idle');
+      const outer = tiles.filter(q => q.def.fightRing === 3);
+      const pool = outer.length ? outer : tiles;
+      if (pool.length) {
+        const q = pool[Math.floor(rng(k * 131 + 17)() * pool.length)];
+        q.cs = 'shake'; q.ct = 1.2; q.noReturn = true;
+        if (Game.screen === 'play' && Math.hypot(P.pos.x - q.base.x, P.pos.z - q.base.z) < 25) SFX.crumble();
+      }
+    }
+  }
+  // respawn on whatever is left, closest to the middle
+  let best = null, bd = Infinity;
+  for (const q of L.crumbles) if (q.def.fightRing && q.cs === 'idle' && q.def.fightRing < bd) { bd = q.def.fightRing; best = q; }
+  if (best) P.respawn.set(best.base.x, top, best.base.z);
+  // host: bombs, and the end of the fight
+  const hp = fightHP();
+  if (Game.isHost && Game.running && !F.over) {
+    F.bombT -= dt;
+    const alive = [...F.bombs.values()].filter(b => b.st !== 'gone').length;
+    if (F.bombT <= 0) {
+      F.bombT = FIGHT.bombEvery[F.diff];
+      if (alive < FIGHT.maxBombs) {
+        const spots = L.crumbles.filter(q => q.def.fightRing && q.cs === 'idle' && q.def.fightRing <= (ph >= 4 ? 2 : 3));
+        if (spots.length) { const q = spots[Math.floor(Math.random() * spots.length)]; Game.bombN = (Game.bombN || 0) + 1; bossEmit('b', Game.bombN * 100 + q.def.fightIdx); }
+      }
+    }
+    if (hp <= 0) { F.over = 'win'; Game.hostEndAt = performance.now() + 2600; if (B) { B.say('Bon... vous êtes augmentés', 4); B.angry(); } }
+    else if (Game.elapsed > F.limit * 1000) { F.over = 'lose'; Game.hostEndAt = performance.now() + 1500; }
+  }
+  if (hp <= 0 && !F.wonShown) { F.wonShown = true; clutchMoment('Directeur vaincu !', B ? B.blob.root.position : P.pos, true); SFX.check(); }
+  fightHud(hp);
+}
+function fightHud(hp) {
+  const bar = $('#bossbar'), F = Game.fight;
+  if (!bar) return;
+  if (!F || Game.screen !== 'play') { bar.hidden = true; return; }
+  if (hp == null) hp = fightHP();
+  bar.hidden = false;
+  if (F.hpShown !== hp) {
+    F.hpShown = hp;
+    $('#bossbar-fill').style.width = (100 * hp / F.max).toFixed(1) + '%';
+    $('#bossbar-hp').textContent = hp + ' / ' + F.max;
+  }
+  const left = Math.max(0, F.limit - Game.elapsed / 1000), ph = Game.bossPhase || 1;
+  const txt = 'Phase ' + ph + ' · ' + Math.floor(left / 60) + ':' + String(Math.floor(left % 60)).padStart(2, '0');
+  if ($('#bossbar-info').textContent !== txt) $('#bossbar-info').textContent = txt;
+}
+// bombs on the director's turn to call them out (host), applied on every screen
+function fightBombEvent(a) { if (Game.fight) bombSpawn(Math.floor(a / 100), a % 100); }
+
 // ===================== levels =====================
 // Coordinates: x right, y up, z forward is negative. p(x, top, z, width, depth).
 // Jump budget: single ~2.0 m high / ~5.7 m long, double ~3.6 m high / ~9 m long, pad ~5.6 m high.
@@ -4122,6 +4439,8 @@ function LB(theme, name, sub) {
     cover(x, top, z, w, dd, h) { put(d.plats, { x, top: top + h, z, w, d: dd, h, prop: 'cover', base: top, route: false, nosup: true }); return api; },
     // low beam across x (axis 'x') or z, `clear` m above the floor at `top`: dive or slide under it
     gate(x, top, z, w, axis, o) { o = o || {}; const clear = o.clear || 0.8, hgt = o.hgt || 3.6; put(d.plats, Object.assign({ x, top: top + clear + hgt, z, w: axis === 'x' ? w : 0.5, d: axis === 'x' ? 0.5 : w, h: hgt, gate: true, clear, route: false, nosup: true }, o)); return api; },
+    // moving Ring obstacles (ringx.js): hammer, roller, laser, zones, spin (turntable), hatch (trapdoors)
+    ob(type, o) { put(d.obstacles, Object.assign({ type }, o || {})); return api; },
     phase(k) { d._ph = k || 0; return api; },
     // Ring: glue on strips of ring k (they still drop with the ring)
     gooStrips(k, sides) { ringGoo(api, k, sides); return api; },
@@ -4518,8 +4837,12 @@ function ring1() {
     .bumper(-2.4, 0, -22.4, 0.7).bumper(2.4, 0, -17.6, 0.7)
     .p(-12.6, -2.1, -20, 2.4, 2.4, { route: false })
     .fan(-12.6, 0.5, -20, [1, 0, 0], 22, 2.4, 5.2, { on: 2.6, off: 4.4, ph: 2 })
+    // a laser scans the table: low beams to jump, high beams to dive under
+    .ob('laser', { x: 0, top: 0, z: -20, axis: 'z', half: 9.5, len: 21, per: 11 })
     // Chaos: a second fan across the other axis, a ruler spinning on the core, a vacuum robot
     .hard()
+    .ob('hammer', { x: 0, top: 0, z: -20, axis: 'x', len: 5.2, per: 3.8, span: 23, ph: 1 })
+    .ob('hatch', { per: 9 })
     .gooStrips(1, [0, 1])
     .p(0, -2.1, -7.4, 2.4, 2.4, { route: false })
     .fan(0, 0.5, -7.4, [0, 0, -1], 22, 2.4, 5.2, { on: 2.4, off: 4.6, ph: 5.5 })
@@ -4530,7 +4853,8 @@ function ring1() {
     .p(12.6, -2.1, -20, 2.4, 2.4, { route: false })
     .fan(12.6, 0.5, -20, [-1, 0, 0], 22, 2.4, 5.4, { on: 2.2, off: 3.4, ph: 4.4 })
     .p(-12, 0.4, -8, 2.4, 2.4, { route: false }).turret(-12, 0.4, -8, { rate: 2.1, range: 26, ry: 2.4 })
-    .foe('robot', -5.5, 0, -14.5, [-8.6, 8.6, -28.6, -11.4]);
+    .foe('robot', -5.5, 0, -14.5, [-8.6, 8.6, -28.6, -11.4])
+    .ob('roller', { x: 0, top: 0, z: -20, axis: 'z', half: 9.5, len: 18, per: 12, ph: 2 });
   insaneKit(b, 0, 0, -20);
   return b.def;
 }
@@ -4539,8 +4863,11 @@ function ring2() {
   b.ringArena(0, 0, -20, 9, 2, 2.5)
     .sweep(0, 0, -20, 7.4, 1.1, 0, { vary: 1.2, vper: 6 })
     .foe('ghost', 5, 0, -25, [-9, 9, -29, -11])
+    .ob('hammer', { x: 0, top: 0, z: -20, axis: 'z', len: 5.2, per: 3.6, span: 23 })
     // Chaos: a second ghost, a pumpkin cannon on a rock and a crypt vent
     .hard()
+    .ob('zones', { x: 0, top: 0, z: -20, half: 8.5, n: 3, per: 6.5 })
+    .ob('hatch', { per: 10 })
     .gooStrips(1, [0, 1])
     .foe('ghost', -5, 0, -15, [-9, 9, -29, -11])
     .p(-13.5, 0.4, -20, 2.4, 2.4, { route: false })
@@ -4552,7 +4879,8 @@ function ring2() {
     .foe('ghost', 0, 0, -12.5, [-9, 9, -29, -11])
     .p(13.5, 0.4, -20, 2.4, 2.4, { route: false }).turret(13.5, 0.4, -20, { rate: 2.3, range: 24, ry: -Math.PI / 2, ph: 1.1 })
     .p(0, -2.1, -7.4, 2.4, 2.4, { route: false })
-    .fan(0, 0.5, -7.4, [0, 0, -1], 22, 2.4, 5.2, { on: 2.4, off: 3.6, ph: 3 });
+    .fan(0, 0.5, -7.4, [0, 0, -1], 22, 2.4, 5.2, { on: 2.4, off: 3.6, ph: 3 })
+    .ob('laser', { x: 0, top: 0, z: -20, axis: 'x', half: 9.5, len: 21, per: 10 });
   insaneKit(b, 0, 0, -20);
   return b.def;
 }
@@ -4561,8 +4889,11 @@ function ring3() {
   b.ringArena(0, 0, -20, 9, 2, 2.5, { ice: true })
     .bumper(-2.4, 0, -17.6, 0.7).bumper(2.4, 0, -22.4, 0.7)
     .foe('penguin', 0, 0, -26, [-8.5, 8.5, -28.5, -11.5])
+    .ob('spin', { x: 0, top: 0, z: -20, r: 3.7, w: 0.75 })
     // Chaos: two more penguins, a snow cannon and a spinning hockey stick
     .hard()
+    .ob('roller', { x: 0, top: 0, z: -20, axis: 'x', half: 9.5, len: 18, per: 12 })
+    .ob('hatch', { per: 9 })
     .gooStrips(1, [0, 1])
     .foe('penguin', -6, 0, -14, [-8.5, 8.5, -28.5, -11.5]).foe('penguin', 6, 0, -14, [-8.5, 8.5, -28.5, -11.5])
     .p(-12.6, -2.1, -20, 2.4, 2.4, { route: false })
@@ -4572,7 +4903,8 @@ function ring3() {
     .insane()
     .p(13.5, 0.4, -20, 2.4, 2.4, { route: false }).turret(13.5, 0.4, -20, { rate: 2.2, range: 24, ry: -Math.PI / 2 })
     .p(0, -2.1, -32.6, 2.4, 2.4, { route: false })
-    .fan(0, 0.5, -32.6, [0, 0, 1], 22, 2.4, 4.8, { on: 2.4, off: 3.4, ph: 1.6, tint: '#EAF6FF' });
+    .fan(0, 0.5, -32.6, [0, 0, 1], 22, 2.4, 4.8, { on: 2.4, off: 3.4, ph: 1.6, tint: '#EAF6FF' })
+    .ob('hammer', { x: 0, top: 0, z: -20, axis: 'z', len: 5.2, per: 3.4, span: 23, ph: 2 });
   insaneKit(b, 0, 0, -20);
   return b.def;
 }
@@ -4582,8 +4914,11 @@ function ring4() {
     .pad(0, 0, -20)
     .p(13.5, 0.4, -20, 2.2, 2.2, { route: false, prop: 'buoy', nosup: true })
     .turret(13.5, 0.4, -20, { rate: 2.8, range: 22, ry: -Math.PI / 2 })
+    .ob('roller', { x: 0, top: 0, z: -20, axis: 'z', half: 9.5, len: 18, per: 12 })
     // Chaos: a second launcher across the pond, a rowing oar spinning and two buoys to bounce off
     .hard()
+    .ob('zones', { x: 0, top: 0, z: -20, half: 8.5, n: 3, per: 6 })
+    .ob('hatch', { per: 9 })
     .gooStrips(1, [0, 1])
     .p(-13.5, 0.4, -20, 2.2, 2.2, { route: false, prop: 'buoy', nosup: true })
     .turret(-13.5, 0.4, -20, { rate: 2.8, range: 22, ry: Math.PI / 2, ph: 1.4 })
@@ -4593,12 +4928,14 @@ function ring4() {
     .insane()
     .p(0, 0.4, -33.5, 2.2, 2.2, { route: false, prop: 'buoy', nosup: true })
     .turret(0, 0.4, -33.5, { rate: 2.4, range: 22, ry: 0, ph: 0.7 })
-    .foe('robot', -5, 0, -15, [-8.6, 8.6, -28.6, -11.4]).foe('robot', 5, 0, -25, [-8.6, 8.6, -28.6, -11.4]);
+    .foe('robot', -5, 0, -15, [-8.6, 8.6, -28.6, -11.4]).foe('robot', 5, 0, -25, [-8.6, 8.6, -28.6, -11.4])
+    .ob('laser', { x: 0, top: 0, z: -20, axis: 'x', half: 9.5, len: 21, per: 10, ph: 3 })
+    .ob('hammer', { x: 0, top: 0, z: -20, axis: 'x', len: 5.2, per: 3.6, span: 23 });
   insaneKit(b, 0, 0, -20);
   return b.def;
 }
 
-const LEVELS = [level1, level2, level3, level4, level5, level6, ring1, ring2, ring3, ring4];
+const LEVELS = [level1, level2, level3, level4, level5, level6, ring1, ring2, ring3, ring4, fight1];
 const LEVEL_DEFS = LEVELS.map(f => f());
 // one tune per level (see music.js); the random course picks its own from the decor it draws
 ['bureau', 'halloween', 'noel', 'parc', 'boss', null, 'ring:0', 'ring:1', 'ring:2', 'ring:3'].forEach((m, i) => { if (m) LEVEL_DEFS[i].music = m; });
@@ -4992,6 +5329,10 @@ class Blob {
   setCrown(on) { this.crown.visible = !!on; }
   setGrab(on) { this.grabbing = !!on; }
   setHeld(on) { this.held = !!on; }
+  // Ring « mode fantôme »: see-through for a few seconds
+  setGhost(on) {
+    this.root.traverse(o => { if (!o.isMesh || !o.material) return; const ms = Array.isArray(o.material) ? o.material : [o.material]; for (const m of ms) { if (m.userData.op0 == null) m.userData.op0 = m.opacity, m.userData.tr0 = m.transparent; m.transparent = on ? true : m.userData.tr0; m.opacity = on ? 0.35 : m.userData.op0; m.needsUpdate = true; } });
+  }
   punch(k) { this.punchT = 1; this.punchK = k || 0; this.impulse(1.5 + (k || 0) * 2); }
   reach() { this.reachT = 0.35; }
   impulse(v) { this.sqV += v; }
@@ -5233,13 +5574,13 @@ function stepPlayer(L, h, camYaw, inputOn) {
 
   let ix = 0, iz = 0;
   const control = inputOn && !P.diving && P.stunT <= 0;
-  if (control) { const a = Input.move(); ix = a.x; iz = a.z; }
+  if (control) { const a = Input.move(); ix = a.x; iz = a.z; if (P.reverse) { ix = -ix; iz = -iz; } }
   const fx = -Math.sin(camYaw), fz = -Math.cos(camYaw), rx = Math.cos(camYaw), rz = -Math.sin(camYaw);
   let wx = rx * ix + fx * iz, wz = rz * ix + fz * iz;
   const wl = Math.hypot(wx, wz);
   if (wl > 1) { wx /= wl; wz /= wl; }
   P.wishX = wx; P.wishZ = wz;
-  const onIce = P.grounded && P.ground && P.ground.ice, sticky = P.grounded && P.ground && P.ground.slow;
+  const onIce = P.grounded && P.ground && (P.ground.ice || P.iceAll), sticky = P.grounded && P.ground && P.ground.slow;
   let acc = P.grounded ? (onIce ? (wl > 0.05 ? PH.iceAcc : PH.iceFric) : (wl > 0.05 ? PH.accG : PH.fric)) : PH.accA;
   if (P.knockT > 0) acc *= 0.25;
   if (P.diving) acc = P.grounded ? PH.fric * 0.5 : 2;
@@ -5295,7 +5636,7 @@ function stepPlayer(L, h, camYaw, inputOn) {
   }
   if (P.diving) { P.diveT -= h; if (P.diveT <= 0) P.diving = false; }
   if (P.windT > 0) P.windT -= h;
-  if (L.obstacles) for (const o of L.obstacles) { if (o.off) continue; const ev = o.collide(P, h); if (ev) P.events.push(ev); }
+  if (L.obstacles) for (const o of L.obstacles) { if (o.off || (P.ghost && o.ghostable)) continue; const ev = o.collide(P, h); if (ev) P.events.push(ev); }
   // while holding someone the blob faces the camera direction: walk backwards to pull, aim to throw
   if (P.grab) P.facingTarget = Math.atan2(-Math.sin(camYaw), -Math.cos(camYaw));
   else if (Math.hypot(P.vel.x, P.vel.z) > 0.6 && P.knockT <= 0) P.facingTarget = Math.atan2(P.vel.x, P.vel.z);
@@ -6022,7 +6363,7 @@ function ballStep(L, b, h, pushers, need) {
 // Coop only: come back next to the teammate who went furthest (on a race level) or the nearest
 // one (in the arena), if they stand on solid ground. Otherwise the checkpoint is used.
 function teamRespawnPoint() {
-  if (Game.mode !== 'coop') return null;
+  if (Game.mode !== 'coop' && Game.mode !== 'boss') return null;
   const L = Game.level, arena = !!L.def.arena;
   const mine = arena ? 0 : L.progress(P.respawn.x, P.respawn.y, P.respawn.z);
   let best = null, bestScore = -Infinity;
@@ -6157,7 +6498,9 @@ function interactTick(dt, now) {
   }
   // carried: no pushing, but you can grab whoever is in front of you (a chain), never someone above you
   if (P.heldBy) {
-    if (gPress && !P.grab && P.grabCd <= 0) tryGrab(linkAbove(Game.myPeer, Act.dep));
+    // a bomb works even while someone carries you (and throws you at the director)
+    if (pPress && Game.fight && Game.fight.carry != null) fightThrow();
+    if (gPress && !P.grab && P.grabCd <= 0 && !fightPickup()) tryGrab(linkAbove(Game.myPeer, Act.dep));
     if (P.grab) holdTick(dt, gRel || !g.down);
     Act.charging = false; P.blob.charge = 0;
     P.blob.setGrab(!!P.grab); P.blob.setHeld(true);
@@ -6165,7 +6508,8 @@ function interactTick(dt, now) {
   }
   P.blob.setHeld(false);
   if (pPress) {
-    if (P.grab) throwGrab();
+    if (Game.fight && Game.fight.carry != null) fightThrow();
+    else if (P.grab) throwGrab();
     else if (P.pushCd <= 0 && P.stunT <= 0) { Act.charging = true; Act.chargeT = 0; }
   }
   if (Act.charging) {
@@ -6176,7 +6520,7 @@ function interactTick(dt, now) {
   if (gPress && !P.grab && P.grabCd <= 0 && P.stunT <= 0 && !P.diving) {
     // falling: catch someone within reach, or a ledge; otherwise a normal grab
     const falling = !P.grounded && P.vel.y < 2;
-    if (!(falling && (tryHang() || (ledgeAllowed() && tryLedge())))) tryGrab(linkAbove(Game.myPeer, Act.dep));
+    if (!fightPickup() && !(falling && (tryHang() || (ledgeAllowed() && tryLedge())))) tryGrab(linkAbove(Game.myPeer, Act.dep));
   }
   if (P.grab) holdTick(dt, gRel || !g.down);
   P.blob.setGrab(!!P.grab);
@@ -6432,6 +6776,7 @@ function applyHitToMe(from, kind, x, z, s) {
     if (s > 11) shout(11);
   } else if (kind === 't') {
     knock(x * s, z * s, INT.throwUp, 0.9);
+    P.thrownT = 1.4;
     P.stunT = 0.3; P.blob.spin(); P.blob.scare(1.4); SFX.whoosh(); shout(10);
   }
 }
@@ -7153,6 +7498,8 @@ Level.prototype.addBoss = function (o) {
   add(boxGeo(0.085, 0.24, 0.02), tie, [0, 0.29, 0.512], [-0.12, 0, 0]);
   // the chair behind him and the desk in front of him (decor only: the finish platform is the edge of play)
   const chair = new THREE.Group(); chair.position.set(o.x, baseY, o.z);
+  // Boss mode: he stands in the middle of the blotter, no chair and no desk in front of him
+  if (o.arena) chair.visible = false;
   chair.add(L.mesh(slabGeo(0.9 * s, 1.25 * s, 0.14 * s, 0.06 * s, 0.2), M.leather, { p: [0, 0.62 * s, -0.7 * s], r: [-0.08, 0, 0], cast: true }));
   chair.add(L.mesh(cylGeo(0.06 * s, 0.06 * s, baseY - L.floorY, 16), M.metal, { p: [0, -(baseY - L.floorY) / 2, -0.7 * s] }));
   L.root.add(chair);
@@ -7179,12 +7526,13 @@ Level.prototype.addBoss = function (o) {
   // nameplate facing the course
   const plate = L.tex('nameplate', [512, 96], (x, w, h) => { x.fillStyle = '#B08D4A'; x.fillRect(0, 0, w, h); x.strokeStyle = '#7A5E2C'; x.lineWidth = 6; x.strokeRect(6, 6, w - 12, h - 12); x.fillStyle = '#2A1A0E'; x.font = '700 50px Nohemi, Montserrat, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('LE DIRECTEUR', w / 2, h / 2 + 3); }, { clamp: true });
   desk.add(L.mesh(boxGeo(7, 1.3, 0.5), [M.edge, M.edge, M.edge, M.edge, L.basic('plateM', { map: plate }), M.edge], { p: [o.x - 3.5, top + 0.65, dz + 2.6], r: [-0.25, 0, 0], cast: true }));
-  L.root.add(desk);
+  if (!o.arena) L.root.add(desk);
   // name tag and speech bubble (outside the scaled blob so they stay crisp)
   const tag = L.label('/ Le directeur', { font: '700 46px Nohemi, Montserrat, sans-serif', bg: 'rgba(15,44,70,0.9)', scale: 0.03, depthTest: false, renderOrder: 18 });
   tag.sprite.position.set(o.x, baseY + s * 1.55, o.z);
+  if (o.arena) tag.sprite.visible = false;
   L.root.add(tag.sprite);
-  const bubble = L.label('…', { font: '700 42px Nohemi, Montserrat, sans-serif', bg: 'rgba(255,255,255,0.97)', fg: TOK.ink, border: TOK.ink, scale: 0.034, depthTest: false, renderOrder: 22 });
+  const bubble = L.label('…', { font: '700 42px Nohemi, Montserrat, sans-serif', bg: 'rgba(255,255,255,0.97)', fg: TOK.ink, border: TOK.ink, scale: o.arena ? 0.02 : 0.034, depthTest: false, renderOrder: 22 });
   bubble.sprite.position.set(o.x + 0.9 * s, baseY + s * 0.95, o.z + 0.35 * s); bubble.sprite.visible = false;
   L.root.add(bubble.sprite);
   const muzzle = new THREE.Object3D(); muzzle.position.set(0.32, 1.05, 0.35); blob.inner.add(muzzle);
@@ -7194,6 +7542,8 @@ Level.prototype.addBoss = function (o) {
     raise: 0, throwT: 0, warn: 0, slamT: 0, angryT: 0, rageK: 0, rageOn: false, steamT: 0,
     baseCol: blob.mat.color.clone(), rageCol: col('#B2323F'),
     rage() { this.rageOn = true; this.angry(); },
+    // a bomb or a body slam landed: he flashes white and wobbles
+    hurt() { this.hurtT = 0.35; blob.impulse(-10); blob.jiggle(22); },
     say(text, dur) { bubble.set(text); bubble.sprite.visible = true; this.bubbleT = dur || 3.6; },
     angry() { this.angryT = 1.2; blob.impulse(-7); blob.jiggle(12); },
     windup() { this.warn = 1; },
@@ -7214,6 +7564,7 @@ Level.prototype.addBoss = function (o) {
       if (this.rageOn) { this.steamT -= dt; if (this.steamT <= 0) { this.steamT = 0.3; const r = blob.root.rotation.y; for (const sx of [-1, 1]) FX.burst(new THREE.Vector3(o.x + Math.cos(r) * sx * 0.3 * s, baseY + 1.05 * s, o.z - Math.sin(r) * sx * 0.3 * s), '#FFFFFF', 3, 2, 0.5, 6, 0.9, -2); } }
       if (this.bubbleT > 0) { this.bubbleT -= dt; if (this.bubbleT <= 0) bubble.sprite.visible = false; }
       if (this.angryT > 0) this.angryT -= dt;
+      if (this.hurtT > 0) { this.hurtT -= dt; blob.mat.color.copy(this.rageOn ? this.rageCol : this.baseCol).lerp(col('#FFFFFF'), Math.max(0, this.hurtT) / 0.35); if (this.hurtT <= 0) blob.mat.color.copy(this.rageOn ? this.rageCol : this.baseCol); }
       if (this.throwT > 0) this.throwT = Math.max(0, this.throwT - dt * 2.5);
       if (this.slamT > 0) this.slamT = Math.max(0, this.slamT - dt * 3);
       // hands rest on the desk; the right one rises to throw, both rise before a slam
@@ -7314,7 +7665,7 @@ function bossEnable(k) {
   Game.bossPhase = Math.max(Game.bossPhase || 0, k);
   if (L.boss.tu) L.boss.tu.rate = Game.bossPhase >= 5 ? 1.25 : Game.bossPhase >= 4 ? 1.7 : 2.4;
   if (!fresh) return;
-  const ph = BOSS_PHASES[k];
+  const ph = (L.def.fight ? FIGHT_PHASES : BOSS_PHASES)[k];
   L.boss.say(ph.say, 3.8); L.boss.angry();
   if (k === 5) L.boss.rage();
   SFX.boss();
@@ -7326,7 +7677,8 @@ function bossTick(dt) {
   const B = L.boss;
   if (Game.running) {
     let target = Game.bossPhase || 0;
-    if (Game.isHost) {
+    if (L.def.fight && Game.fight) target = Math.max(target, fightPhase(fightHP()));
+    else if (Game.isHost) {
       const lead = leadProgress();
       target = Math.max(target, B.o.at.filter(a => lead >= a).length);
       if ((+Net.me.bs || 0) !== target) Net.set({ bs: target });
@@ -7358,7 +7710,7 @@ function bossTick(dt) {
     if (Game.role !== 'def' && !Game.done) cands.push(P.pos);
     for (const r of Game.remotes.values()) if (r.st === 'play') cands.push(r.rp);
     for (const c of cands) { const d = Math.hypot(c.x - B.o.x, c.z - B.o.z); if (d < bd) { bd = d; best = c; } }
-    const yaw = best ? clamp(Math.atan2(best.x - B.o.x, best.z - B.o.z), -0.9, 0.9) : 0;
+    const a = best ? Math.atan2(best.x - B.o.x, best.z - B.o.z) : 0, yaw = B.o.arena ? a : clamp(a, -0.9, 0.9);
     B.blob.root.rotation.y = dampAngle(B.blob.root.rotation.y, yaw, 2.5, dt);
   }
   B.tick(dt);
@@ -7538,6 +7890,8 @@ function bossExec(kind, a) {
   const L = Game.level;
   if (kind === 'r' && L.rain) L.rain.spawn(a);
   else if (kind === 'g' && L.stamps && L.stamps[a]) L.stamps[a].trigger();
+  else if (kind === 'x') ringEventStart(a);
+  else if (kind === 'b') fightBombEvent(a);
   else if (kind === 'w' && L.fans.length) { for (const f of L.fans) f.blastT = 2.6; SFX.fanOn(); toast('Rafale !', 1200); }
 }
 function bossStampTarget(L) {
@@ -7555,7 +7909,7 @@ function bossStampTarget(L) {
 // The host calls out the attacks (boss phases 2+, Ring Insane) in its presence `bk`; everyone plays them.
 function eventsTick(dt) {
   const L = Game.level;
-  if (!L || !Game.running || (!L.boss && !L.insane)) return;
+  if (!L || !Game.running || (!L.boss && !L.insane && !L.def.ring)) return;
   if (Game.isHost) {
     if (L.boss) {
       const ph = Game.bossPhase || 0;
@@ -7580,6 +7934,10 @@ function eventsTick(dt) {
         if (Game.stampT <= 0) { const i = bossStampTarget(L); Game.stampT = i >= 0 ? 2.6 : 0.4; if (i >= 0) bossEmit('g', i); }
       }
     } else {
+      // Ring, every difficulty: a random event every 30 to 60 seconds (announced 3 s ahead)
+      Game.revT = (Game.revT == null ? REV.first : Game.revT) - dt;
+      if (Game.revT <= 0) { Game.revT = REV.gapMin + Math.random() * (REV.gapMax - REV.gapMin); bossEmit('x', ringEventPick()); }
+      if (!L.insane) return;
       // Ring Insane: something nasty every few seconds, faster once the edge starts falling
       Game.evT = (Game.evT == null ? 5 : Game.evT) - dt;
       if (Game.evT <= 0) {
@@ -7606,14 +7964,423 @@ function eventsTick(dt) {
   Game.bkSeen = top;
 }
 
+// ===================== Ring: moving obstacles, and a random event every 30 to 60 seconds =====================
+// Obstacles move on the level clock (Game.lt) so every screen sees them in the same place without
+// sending anything. The host draws the random events and calls them out like the Insane events
+// (presence `bk`, kind 'x'); each client then plays the event on its own blob.
+const RX_TINT = { bureau: ['#16345E', '#DC7046'], halloween: ['#2B2238', '#E06A1B'], noel: ['#2F5A7A', '#C8323E'], parc: ['#5A3B22', '#2F7A4A'], direction: ['#16345E', '#DC7046'] };
+// the first seconds of a round, nothing hits (everyone finds their feet)
+const RX_GRACE = 5;
+function rxTint(L) { return RX_TINT[L.def.theme] || RX_TINT.bureau; }
+function rxSeed(L) { let h = 7; for (const ch of String(L.def.name)) h = (h * 31 + ch.charCodeAt(0)) % 100003; return h; }
+// level-clock triangle wave: -1 → 1 → -1 over `per` seconds; returns [position, direction]
+function rxTri(t, per, ph) { const u = (((t + (ph || 0)) / per) % 1 + 1) % 1; return u < 0.5 ? [u * 4 - 1, 1] : [3 - u * 4, -1]; }
+function rxZap(Pl, vx, vz, up, stun) {
+  knock(vx, vz, up, 0.5);
+  Pl.stunT = Math.max(Pl.stunT, stun || 0.4);
+  if (Pl === P && P.blob) { P.blob.jiggle(16); P.blob.scare(1); }
+}
+
+// ---------- pendulum hammer on a gantry: the head swings across the ring along `axis` ----------
+Level.prototype.addHammer = function (o) {
+  const L = this, len = o.len || 5.2, amp = o.amp || 1.0, per = o.per || 3.6, hr = o.r || 0.8, alongZ = o.axis === 'z', span = o.span || 22;
+  const [c1, c2] = rxTint(L), py = o.top + 0.95 + len;
+  const root = new THREE.Group(); root.position.set(o.x, 0, o.z); L.root.add(root);
+  const metal = L.pbr('rxMetal', { color: '#2E3238', metalness: 0.6, roughness: 0.4 }), dark = L.pbr('rxDark' + c1, { color: c1, roughness: 0.5 });
+  // gantry: two tall posts beside the ring, a beam across
+  for (const sd of [-1, 1]) root.add(L.mesh(boxGeo(0.35, py - o.top + 8.3, 0.35), dark, { p: [alongZ ? sd * span / 2 : 0, (py + 0.3 + o.top - 8) / 2, alongZ ? 0 : sd * span / 2], cast: true }));
+  root.add(L.mesh(boxGeo(alongZ ? span + 0.35 : 0.4, 0.4, alongZ ? 0.4 : span + 0.35), dark, { p: [0, py + 0.2, 0], cast: true }));
+  const pivot = new THREE.Group(); pivot.position.y = py; root.add(pivot);
+  pivot.add(L.mesh(cylGeo(0.08, 0.08, len, 8), metal, { p: [0, -len / 2, 0], cast: true }));
+  // the head: a big mallet, its barrel across the swing
+  const head = L.mesh(cylGeo(hr, hr, 1.6, 22), L.pbr('rxHead' + c2, { color: c2, roughness: 0.45 }), { p: [0, -len, 0], r: alongZ ? [0, 0, Math.PI / 2] : [Math.PI / 2, 0, 0], cast: true });
+  pivot.add(head);
+  for (const sd of [-1, 1]) pivot.add(L.mesh(cylGeo(hr * 1.04, hr * 1.04, 0.12, 22), metal, { p: alongZ ? [sd * 0.8, -len, 0] : [0, -len, sd * 0.8], r: alongZ ? [0, 0, Math.PI / 2] : [Math.PI / 2, 0, 0] }));
+  const w = Math.PI * 2 / per;
+  const ob = {
+    type: 'hammer', o, cd: 0, th: 0, dth: 0, ghostable: true,
+    update(t) {
+      this.th = amp * Math.sin(w * t + (o.ph || 0)); this.dth = amp * w * Math.cos(w * t + (o.ph || 0));
+      if (alongZ) pivot.rotation.x = -this.th; else pivot.rotation.z = this.th;
+    },
+    collide(Pl, h) {
+      if (this.cd > 0) { this.cd -= h; return null; }
+      if (Game.lt < RX_GRACE) return null;
+      const s = Math.sin(this.th) * len, hy = py - Math.cos(this.th) * len;
+      const hx = o.x + (alongZ ? 0 : s), hz = o.z + (alongZ ? s : 0);
+      const ph = Pl.h || PH.H, cy = clamp(hy, Pl.pos.y, Pl.pos.y + ph);
+      const da = alongZ ? Pl.pos.z - hz : Pl.pos.x - hx, lat = alongZ ? Pl.pos.x - hx : Pl.pos.z - hz;
+      if (Math.hypot(da, cy - hy) > hr + PH.r || Math.abs(lat) > 0.8 + PH.r) return null;
+      const dir = Math.sign(this.dth) || 1, sp = 10 + Math.abs(this.dth) * len * 0.7;
+      rxZap(Pl, alongZ ? 0 : dir * sp, alongZ ? dir * sp : 0, 6.5, 0.35);
+      this.cd = 0.6;
+      return { hit: 'sweep' };
+    }
+  };
+  L.obstacles.push(ob);
+  return ob;
+};
+
+// ---------- a roller crossing the ring back and forth: jump over it ----------
+Level.prototype.addRoller = function (o) {
+  const L = this, r = o.r || 0.75, half = o.half || 9.5, len = o.len || 18, per = o.per || 11, alongZ = o.axis === 'z';
+  const th = L.def.theme, look = { bureau: ['#F4F1EA', '#16345E'], halloween: ['#E06A1B', '#3B2A1A'], noel: ['#F7F9FB', '#C8DDEE'], parc: ['#7A5132', '#5A3B22'] }[th] || ['#F4F1EA', '#16345E'];
+  const g = new THREE.Group(); L.root.add(g);
+  const roll = new THREE.Group(); g.add(roll);
+  roll.add(L.mesh(cylGeo(r, r, len, 28), L.pbr('rxRoll' + th, { color: look[0], roughness: 0.6 }), { cast: true }));
+  for (let i = -2; i <= 2; i++) roll.add(L.mesh(cylGeo(r * 1.015, r * 1.015, 0.22, 28), L.pbr('rxRollBand' + th, { color: look[1], roughness: 0.5 }), { p: [0, i * len / 5, 0] }));
+  g.rotation.set(alongZ ? 0 : Math.PI / 2, alongZ ? Math.PI / 2 : 0, 0);
+  const ob = {
+    type: 'roller', o, cd: 0, s: 0, dir: 1, ghostable: true,
+    update(t) {
+      const [u, d] = rxTri(t, per, o.ph); this.s = u * half; this.dir = d;
+      g.position.set(o.x + (alongZ ? 0 : this.s), o.top + r, o.z + (alongZ ? this.s : 0));
+      roll.rotation.y = -this.s / r * (alongZ ? -1 : 1);
+    },
+    collide(Pl, h) {
+      if (this.cd > 0) { this.cd -= h; return null; }
+      if (Game.lt < RX_GRACE) return null;
+      const along = (alongZ ? Pl.pos.z - o.z : Pl.pos.x - o.x) - this.s, lat = alongZ ? Pl.pos.x - o.x : Pl.pos.z - o.z;
+      if (Math.abs(lat) > len / 2 || Math.abs(along) > r + PH.r || Pl.pos.y > o.top + 2 * r - 0.15) return null;
+      const sp = 6.5 + 2 * half / per;
+      rxZap(Pl, alongZ ? 0 : this.dir * sp, alongZ ? this.dir * sp : 0, 7, 0.3);
+      this.cd = 0.5;
+      return { hit: 'sweep' };
+    }
+  };
+  L.obstacles.push(ob);
+  return ob;
+};
+
+// ---------- a laser scanning the ring: low beams (jump) and high beams (dive under) take turns ----------
+Level.prototype.addLaser = function (o) {
+  const L = this, half = o.half || 9.5, len = o.len || 21, per = o.per || 10, alongZ = o.axis !== 'x';
+  const g = new THREE.Group(); L.root.add(g);
+  const mats = [new THREE.MeshBasicMaterial({ color: col(TOK.vivid), toneMapped: false }), new THREE.MeshBasicMaterial({ color: col('#E0313E'), toneMapped: false })];
+  L.own.push(...mats);
+  const beam = new THREE.Mesh(cylGeo(0.06, 0.06, len, 8), mats[0]);
+  beam.rotation.set(alongZ ? 0 : Math.PI / 2, 0, alongZ ? Math.PI / 2 : 0);
+  g.add(beam);
+  const glow = L.glow(TOK.vivid, 1.2, 0.5); g.add(glow);
+  const ends = [];
+  for (const sd of [-1, 1]) { const e = L.mesh(sphGeo(0.32, 14, 10), L.pbr('rxDrone', { color: '#22262C', metalness: 0.5, roughness: 0.35 }), { cast: true }); e.position.set(alongZ ? sd * len / 2 : 0, 0, alongZ ? 0 : sd * len / 2); g.add(e); ends.push(e); }
+  const ob = {
+    type: 'laser', o, cd: 0, s: 0, dir: 1, hb: 0.3, high: false, ghostable: true,
+    update(t) {
+      const [u, d] = rxTri(t, per, o.ph); this.s = u * half; this.dir = d;
+      // each pass alternates: low (jump it) then high (dive or slide under it)
+      this.high = Math.floor(((t + (o.ph || 0)) / (per / 2))) % 2 === 1;
+      this.hb = this.high ? 0.78 : 0.32;
+      beam.material = mats[this.high ? 1 : 0];
+      g.position.set(o.x + (alongZ ? 0 : this.s), o.top + this.hb, o.z + (alongZ ? this.s : 0));
+    },
+    collide(Pl, h) {
+      if (this.cd > 0) { this.cd -= h; return null; }
+      if (Game.lt < RX_GRACE) return null;
+      const along = (alongZ ? Pl.pos.z - o.z : Pl.pos.x - o.x) - this.s, lat = alongZ ? Pl.pos.x - o.x : Pl.pos.z - o.z;
+      const y = o.top + this.hb, ph = Pl.h || PH.H;
+      if (Math.abs(lat) > len / 2 || Math.abs(along) > 0.08 + PH.r || y < Pl.pos.y - 0.05 || y > Pl.pos.y + ph) return null;
+      rxZap(Pl, alongZ ? 0 : this.dir * 7, alongZ ? this.dir * 7 : 0, 6, 0.6);
+      SFX.zap();
+      this.cd = 0.9;
+      return { hit: 'shot' };
+    }
+  };
+  L.obstacles.push(ob);
+  return ob;
+};
+
+// ---------- danger zones: circles that warn, then crackle for a moment ----------
+Level.prototype.addZones = function (o) {
+  const L = this, n = o.n || 3, r = o.r || 1.7, per = o.per || 6, warn = o.warn || 1.8, on = o.on || 1.5, half = o.half || 8, seed = rxSeed(L);
+  const ringGeo = L.ownGeo(new THREE.RingGeometry(r - 0.14, r, 40)); ringGeo.rotateX(-Math.PI / 2);
+  const discGeo = L.ownGeo(new THREE.CircleGeometry(r, 40)); discGeo.rotateX(-Math.PI / 2);
+  const zs = [];
+  for (let i = 0; i < n; i++) {
+    const rm = new THREE.MeshBasicMaterial({ color: col('#E0313E'), transparent: true, opacity: 0, depthWrite: false, toneMapped: false });
+    const dm = new THREE.MeshBasicMaterial({ color: col(TOK.vivid), transparent: true, opacity: 0, depthWrite: false, toneMapped: false });
+    L.own.push(rm, dm);
+    const ring = new THREE.Mesh(ringGeo, rm), disc = new THREE.Mesh(discGeo, dm);
+    ring.renderOrder = disc.renderOrder = 3; L.root.add(ring, disc);
+    zs.push({ ring, disc, rm, dm, x: 0, z: 0 });
+  }
+  const ob = {
+    type: 'zones', o, cd: 0, cycle: -1, u: 0, live: false, ghostable: true, zs,
+    update(t) {
+      const c = Math.floor(t / per); this.u = t - c * per;
+      if (c !== this.cycle) {
+        this.cycle = c;
+        const R = rng(seed * 7919 + c * 104729);
+        for (const z of zs) { z.x = o.x + (R() * 2 - 1) * (half - r); z.z = o.z + (R() * 2 - 1) * (half - r); z.ring.position.set(z.x, o.top + 0.05, z.z); z.disc.position.set(z.x, o.top + 0.04, z.z); }
+      }
+      const u = this.u, warnOn = u < warn, active = u >= warn && u < warn + on;
+      this.live = active;
+      for (const z of zs) {
+        z.rm.opacity = warnOn ? 0.5 + 0.4 * Math.sin(u * (8 + u * 10)) : active ? 0.95 : 0;
+        z.dm.opacity = warnOn ? 0.12 * (u / warn) : active ? 0.45 + 0.2 * Math.sin(u * 40) : 0;
+        z.ring.scale.setScalar(warnOn ? 1.25 - 0.25 * (u / warn) : 1);
+      }
+      if (active && Math.random() < 0.25) { const z = zs[Math.floor(Math.random() * zs.length)]; FX.burst(new THREE.Vector3(z.x + (Math.random() - 0.5) * r, o.top + 0.2, z.z + (Math.random() - 0.5) * r), '#FFD2B8', 3, 3, 0.05, 3, 0.25, 4); }
+    },
+    collide(Pl, h) {
+      if (this.cd > 0) { this.cd -= h; return null; }
+      if (Game.lt < RX_GRACE) return null;
+      if (!this.live || Math.abs(Pl.pos.y - o.top) > 0.45) return null;
+      for (const z of zs) {
+        const dx = Pl.pos.x - z.x, dz = Pl.pos.z - z.z, d = Math.hypot(dx, dz);
+        if (d > r) continue;
+        const a = Math.random() * Math.PI * 2;
+        rxZap(Pl, Math.cos(a) * 4 + (d > 0.1 ? dx / d * 3 : 0), Math.sin(a) * 4 + (d > 0.1 ? dz / d * 3 : 0), 9, 0.45);
+        SFX.zap();
+        this.cd = 0.8;
+        return { hit: 'shot' };
+      }
+      return null;
+    }
+  };
+  L.obstacles.push(ob);
+  return ob;
+};
+
+// ---------- a turntable on the core: it carries whoever stands on it ----------
+Level.prototype.addSpinner = function (o) {
+  const L = this, r = o.r || 3.6, w = o.w || 0.7;
+  const tex = L.tex('rxSpinTex', [256, 256], (x, s) => {
+    x.fillStyle = '#16345E'; x.beginPath(); x.arc(s / 2, s / 2, s / 2, 0, Math.PI * 2); x.fill();
+    x.strokeStyle = 'rgba(255,255,255,0.18)'; x.lineWidth = 6; for (const k of [0.3, 0.42]) { x.beginPath(); x.arc(s / 2, s / 2, s * k, 0, Math.PI * 2); x.stroke(); }
+    x.strokeStyle = '#FF6633'; x.lineWidth = 10; x.lineCap = 'round';
+    for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2; x.beginPath(); x.arc(s / 2, s / 2, s * 0.36, a, a + 0.9); x.stroke(); const ex = s / 2 + Math.cos(a + 0.9) * s * 0.36, ey = s / 2 + Math.sin(a + 0.9) * s * 0.36; x.beginPath(); x.moveTo(ex - 14 * Math.cos(a + 0.9 - 0.6), ey - 14 * Math.sin(a + 0.9 - 0.6)); x.lineTo(ex, ey); x.lineTo(ex - 14 * Math.cos(a + 0.9 + 1.2), ey - 14 * Math.sin(a + 0.9 + 1.2)); x.stroke(); }
+  });
+  const m = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.5, transparent: true }); L.own.push(m);
+  const disc = L.mesh(cylGeo(r, r, 0.05, 48), [L.pbr('rxSpinSide', { color: '#0F2C46', roughness: 0.5 }), m, m], { p: [o.x, o.top + 0.026, o.z], cast: false });
+  L.root.add(disc);
+  const ob = {
+    type: 'spin', o, update(t) { disc.rotation.y = -w * t; },
+    collide(Pl, h) {
+      if (!Pl.grounded || Math.abs(Pl.pos.y - o.top) > 0.12) return null;
+      const dx = Pl.pos.x - o.x, dz = Pl.pos.z - o.z;
+      if (dx * dx + dz * dz > r * r) return null;
+      const a = w * h, c = Math.cos(a), s = Math.sin(a);
+      Pl.pos.x = o.x + dx * c + dz * s; Pl.pos.z = o.z - dx * s + dz * c;
+      Pl.facing += a;
+      return null;
+    }
+  };
+  L.obstacles.push(ob);
+  return ob;
+};
+
+// ---------- trapdoors: every few seconds a strip of the ring shakes, drops, then comes back ----------
+Level.prototype.addHatches = function (o) {
+  const L = this, per = o.per || 9, seed = rxSeed(L);
+  const ob = {
+    type: 'hatch', o, cycle: -1,
+    update(t) {
+      const c = Math.floor(t / per);
+      if (c === this.cycle) return;
+      this.cycle = c;
+      if (t < 5 || !Game.running) return;
+      const strips = L.crumbles.filter(s => s.def && s.def.ringTile != null && !s.def.overlay && s.cs === 'idle' && !s.noReturn && s.def.ringTile < L.def.ring.rings);
+      if (!strips.length) return;
+      const s = strips[Math.floor(rng(seed * 31 + c * 977)() * strips.length)];
+      for (const q of L.crumbles) {
+        if (q !== s && !(q.def && q.def.overlay && q.def.ringTile === s.def.ringTile && Math.abs(q.base.x - s.base.x) < s.hw && Math.abs(q.base.z - s.base.z) < s.hd)) continue;
+        if (q.cs === 'idle') { q.cs = 'shake'; q.ct = 1.1; }
+      }
+      if (Game.screen === 'play' && Math.hypot(P.pos.x - s.base.x, P.pos.z - s.base.z) < 14) SFX.crumble();
+    },
+    collide() { return null; }
+  };
+  L.obstacles.push(ob);
+  return ob;
+};
+
+// =================================== random events (Ring only) ===================================
+const RING_EVENTS = [
+  { id: 'tornado', name: 'Tornade', dur: 11 },
+  { id: 'lowgrav', name: 'Gravité réduite', dur: 15 },
+  { id: 'wind', name: 'Vent violent', dur: 10 },
+  { id: 'meteors', name: 'Pluie de météorites', dur: 12 },
+  { id: 'magnet', name: 'Aimant', dur: 10 },
+  { id: 'ice', name: 'Sol gelé', dur: 12 },
+  { id: 'ghost', name: 'Mode fantôme', dur: 8 },
+  { id: 'reverse', name: 'Commandes inversées', dur: 8 }
+];
+const REV = { warn: 3, gapMin: 30, gapMax: 60, first: 22 };
+// the host picks the next event (never twice in a row)
+function ringEventPick() {
+  let i;
+  do i = Math.floor(Math.random() * RING_EVENTS.length); while (RING_EVENTS.length > 1 && i === Game.revLast);
+  Game.revLast = i;
+  return i * 100000 + 1 + Math.floor(Math.random() * 99998);
+}
+function ringEventStart(code) {
+  const L = Game.level;
+  if (!L || !L.def.ring) return;
+  ringEventEnd();
+  const idx = Math.floor(code / 100000), seed = code % 100000, E = RING_EVENTS[idx];
+  if (!E) return;
+  const R = rng(seed * 131 + 7), Rg = L.def.ring;
+  const ev = Game.rev = { E, seed, t0: Game.lt + REV.warn, end: Game.lt + REV.warn + E.dur, R, cd: 0, vis: null, Rg };
+  if (E.id === 'wind' || E.id === 'tornado') { const a = R() * Math.PI * 2; ev.dir = [Math.cos(a), Math.sin(a)]; }
+  if (E.id === 'tornado') {
+    // crosses the ring through (near) its centre
+    const a = Math.atan2(ev.dir[1], ev.dir[0]), off = (R() - 0.5) * 4, h = Rg.half + 3;
+    ev.a = [Rg.cx - Math.cos(a) * h - Math.sin(a) * off, Rg.cz - Math.sin(a) * h + Math.cos(a) * off];
+    ev.b = [Rg.cx + Math.cos(a) * h - Math.sin(a) * off, Rg.cz + Math.sin(a) * h + Math.cos(a) * off];
+    ev.vis = rxTornadoVis(L);
+  }
+  if (E.id === 'meteors') {
+    ev.rocks = [];
+    for (let i = 0; i < 14; i++) ev.rocks.push({ t: ev.t0 + 0.4 + i * (E.dur - 1.5) / 14 + R() * 0.5, x: Rg.cx + (R() * 2 - 1) * (Rg.half - 1), z: Rg.cz + (R() * 2 - 1) * (Rg.half - 1), done: false, v: null });
+    ev.vis = rxMeteorKit(L);
+  }
+  SFX.alarm();
+  rxBanner();
+}
+function ringEventEnd() {
+  const ev = Game.rev;
+  if (!ev) return;
+  if (ev.vis && ev.vis.dispose) ev.vis.dispose();
+  Game.rev = null; P.reverse = false; P.iceAll = false; P.ghost = false;
+  if (P.blob) P.blob.setGhost && P.blob.setGhost(false);
+  rxBanner();
+}
+// per frame, before the physics: the event's effect on my own blob
+function ringEventTick(dt) {
+  const ev = Game.rev, L = Game.level;
+  if (!ev) return;
+  const t = Game.lt;
+  if (!L || !L.def.ring || t > ev.end || Game.screen !== 'play') { ringEventEnd(); return; }
+  const live = t >= ev.t0, id = ev.E.id, me = !Game.done && !P.frozen;
+  P.reverse = live && id === 'reverse';
+  P.iceAll = live && id === 'ice';
+  const ghost = live && id === 'ghost';
+  if (ghost !== !!P.ghost) { P.ghost = ghost; if (P.blob && P.blob.setGhost) P.blob.setGhost(ghost); }
+  if (live && me) {
+    if (id === 'lowgrav') P.gk *= 0.42;
+    if (id === 'wind') { const k = 4.6 * (0.75 + 0.25 * Math.sin(t * 2.3)); P.dragX += ev.dir[0] * k; P.dragZ += ev.dir[1] * k; if (Math.random() < 0.3) FX.burst(new THREE.Vector3(P.pos.x - ev.dir[0] * 4 + (Math.random() - 0.5) * 8, P.pos.y + 0.5 + Math.random() * 2, P.pos.z - ev.dir[1] * 4 + (Math.random() - 0.5) * 8), '#FFFFFF', 1, 0.5, 0.04, 0, 0.6, 0); }
+    if (id === 'magnet') for (const r of Game.remotes.values()) {
+      if (r.st !== 'play') continue;
+      const dx = r.rp.x - P.pos.x, dz = r.rp.z - P.pos.z, d = Math.hypot(dx, dz);
+      if (d < 7 && d > 0.6) { const k = 3.2 * (1 - d / 7) + 0.8; P.dragX += dx / d * k; P.dragZ += dz / d * k; }
+    }
+  }
+  if (id === 'tornado') rxTornadoTick(ev, t, dt, live && me);
+  if (id === 'meteors') rxMeteorTick(ev, t, dt, me);
+  rxBanner();
+}
+// the banner under the top bar: warning, then what is going on and for how long
+function rxBanner() {
+  const b = $('#evbanner');
+  if (!b) return;
+  const ev = Game.rev;
+  if (!ev) { b.hidden = true; b.dataset.k = ''; return; }
+  const t = Game.lt, live = t >= ev.t0;
+  const txt = live ? '/ ' + ev.E.name + ' · ' + Math.max(0, Math.ceil(ev.end - t)) + ' s' : '/ ' + ev.E.name + ' dans ' + Math.max(1, Math.ceil(ev.t0 - t)) + ' s';
+  if (b.dataset.k !== txt) { b.textContent = txt; b.dataset.k = txt; }
+  b.hidden = false;
+  b.classList.toggle('live', live);
+}
+// ---------- tornado ----------
+function rxTornadoVis(L) {
+  const g = new THREE.Group(); L.root.add(g);
+  const mats = [], geos = [];
+  for (let i = 0; i < 4; i++) {
+    const m = new THREE.MeshBasicMaterial({ color: col(i % 2 ? '#8FA3B8' : '#5E7690'), transparent: true, opacity: 0.32 + i * 0.07, side: THREE.DoubleSide, depthWrite: false });
+    const geo = new THREE.CylinderGeometry(0.6 + i * 0.75, 0.3 + i * 0.2, 7 - i * 0.6, 20, 1, true);
+    mats.push(m); geos.push(geo);
+    const c = new THREE.Mesh(geo, m); c.position.y = 3.5 - i * 0.3; c.userData.k = 1 + i * 0.6; g.add(c);
+  }
+  g.visible = false;
+  return { g, dispose() { L.root.remove(g); mats.forEach(m => m.dispose()); geos.forEach(q => q.dispose()); } };
+}
+function rxTornadoTick(ev, t, dt, live) {
+  const k = clamp((t - ev.t0) / ev.E.dur, 0, 1), Rg = ev.Rg;
+  const x = ev.a[0] + (ev.b[0] - ev.a[0]) * k + Math.sin(t * 1.3) * 0.8, z = ev.a[1] + (ev.b[1] - ev.a[1]) * k + Math.cos(t * 1.1) * 0.8;
+  const v = ev.vis;
+  if (v) {
+    v.g.visible = t >= ev.t0 - 1;
+    v.g.position.set(x, Rg.top, z);
+    v.g.children.forEach(c => { c.rotation.y += dt * 6 * c.userData.k; });
+    if (Math.random() < 0.5) FX.burst(new THREE.Vector3(x + (Math.random() - 0.5) * 3, Rg.top + Math.random() * 5, z + (Math.random() - 0.5) * 3), '#E5EAED', 1, 2, 0.06, 2, 0.5, -2);
+  }
+  if (!live) return;
+  if (ev.cd > 0) ev.cd -= dt;
+  const dx = P.pos.x - x, dz = P.pos.z - z, d = Math.hypot(dx, dz);
+  if (d > 4.5 || P.pos.y > Rg.top + 7) return;
+  // sucked in and spun round...
+  const nx = d > 0.05 ? dx / d : 1, nz = d > 0.05 ? dz / d : 0, f = 1 - d / 4.5;
+  P.dragX += (-nx * 4 - nz * 6) * f; P.dragZ += (-nz * 4 + nx * 6) * f;
+  // ...then thrown out from the eye
+  if (d < 1.3 && ev.cd <= 0) {
+    const a = Math.random() * Math.PI * 2;
+    knock(Math.cos(a) * 9, Math.sin(a) * 9, 12, 0.7);
+    P.stunT = Math.max(P.stunT, 0.4); ev.cd = 1.6;
+    if (P.blob) P.blob.spin();
+    SFX.whoosh(); shout(10);
+  }
+}
+// ---------- meteors ----------
+function rxMeteorKit(L) {
+  const g = new THREE.Group(); L.root.add(g);
+  const rockM = L.pbr('rxRock', { color: '#5A3324', roughness: 0.8, emissive: '#FF6633', emissiveIntensity: 0.6 });
+  const rockG = new THREE.IcosahedronGeometry(0.75, 0);
+  const markG = new THREE.RingGeometry(1.45, 1.7, 36); markG.rotateX(-Math.PI / 2);
+  const fillG = new THREE.CircleGeometry(1.7, 36); fillG.rotateX(-Math.PI / 2);
+  const mats = [];
+  return {
+    g,
+    make() {
+      const rock = new THREE.Mesh(rockG, rockM); rock.castShadow = true;
+      const mm = new THREE.MeshBasicMaterial({ color: col('#E0313E'), transparent: true, opacity: 0, depthWrite: false, toneMapped: false });
+      const fm = new THREE.MeshBasicMaterial({ color: col(TOK.vivid), transparent: true, opacity: 0, depthWrite: false, toneMapped: false });
+      mats.push(mm, fm);
+      const mark = new THREE.Mesh(markG, mm), fill = new THREE.Mesh(fillG, fm); mark.renderOrder = fill.renderOrder = 3;
+      g.add(rock, mark, fill);
+      return { rock, mark, fill, mm, fm };
+    },
+    dispose() { L.root.remove(g); rockG.dispose(); markG.dispose(); fillG.dispose(); mats.forEach(m => m.dispose()); }
+  };
+}
+function rxMeteorTick(ev, t, dt, me) {
+  const Rg = ev.Rg, warn = 1.8, fall = 0.9;
+  for (const m of ev.rocks) {
+    if (m.done) continue;
+    const u = t - (m.t - warn);
+    if (u < 0) continue;
+    if (!m.v) { m.v = ev.vis.make(); m.v.mark.position.set(m.x, Rg.top + 0.05, m.z); m.v.fill.position.set(m.x, Rg.top + 0.04, m.z); }
+    const k = clamp(u / warn, 0, 1);
+    m.v.mm.opacity = 0.5 + 0.4 * Math.sin(u * (10 + 14 * k));
+    m.v.fm.opacity = 0.1 + 0.3 * k;
+    m.v.fill.scale.setScalar(Math.max(0.05, k));
+    const fu = (t - (m.t - fall)) / fall;
+    m.v.rock.visible = fu > 0;
+    if (fu > 0) { m.v.rock.position.set(m.x + (1 - fu) * 6, Rg.top + 0.75 + (1 - fu) * 22, m.z - (1 - fu) * 3); m.v.rock.rotation.x += dt * 5; m.v.rock.rotation.z += dt * 3; }
+    if (t >= m.t) {
+      m.done = true;
+      m.v.rock.visible = false; m.v.mm.opacity = 0; m.v.fm.opacity = 0;
+      FX.burst(new THREE.Vector3(m.x, Rg.top + 0.4, m.z), TOK.vivid, 16, 7, 0.12, 4, 0.6);
+      FX.burst(new THREE.Vector3(m.x, Rg.top + 0.4, m.z), '#5A3324', 10, 5, 0.1, 5, 0.7);
+      const d = Math.hypot(P.pos.x - m.x, P.pos.z - m.z);
+      if (d < 16 && Game.screen === 'play') { SFX.slam(); if (d < 8) Cam.shake = Math.max(Cam.shake, 0.3); }
+      if (me && d < 1.9 && Math.abs(P.pos.y - Rg.top) < 2 && !P.ghost) {
+        const nx = d > 0.1 ? (P.pos.x - m.x) / d : 1, nz = d > 0.1 ? (P.pos.z - m.z) / d : 0;
+        knock(nx * 11, nz * 11, 8, 0.6); P.stunT = Math.max(P.stunT, 0.5); markHit('f:shot');
+        if (P.blob) { P.blob.jiggle(18); P.blob.scare(1.2); }
+      }
+    }
+  }
+}
+
 // ===================== modes: level lists, Ring rounds, Défense role =====================
-const MODES = ['race', 'coop', 'ring', 'defense'];
-const MODE_NAMES = { race: 'Course', coop: 'Coopération', ring: 'Ring', defense: 'Défense' };
+const MODES = ['race', 'coop', 'ring', 'defense', 'boss'];
+const MODE_NAMES = { race: 'Course', coop: 'Coopération', ring: 'Ring', defense: 'Défense', boss: 'Boss' };
 // Each mode plays its own list of levels; gs.lv is an index into that list.
 function modeLevels(md) {
   const out = [];
   LEVEL_DEFS.forEach((d, i) => {
-    if (md === 'ring' ? d.ring : md === 'coop' ? !d.ring : !d.ring && !d.coopOnly) out.push(i);
+    if (md === 'boss' ? d.fight : d.fight ? false : md === 'ring' ? d.ring : md === 'coop' ? !d.ring : !d.ring && !d.coopOnly) out.push(i);
   });
   return out;
 }
@@ -8307,18 +9074,20 @@ function renderLobby(force) {
     lb.textContent = '';
     lvls.forEach((di, i) => {
       const d = LEVEL_DEFS[di], b = el('button', 'lvl'); b.type = 'button'; b.dataset.v = i;
-      const ico = el('span', 'lvl-ico'); ico.innerHTML = LEVEL_ICONS[d.gen ? 'gen' : d.theme] || LEVEL_ICONS.bureau;
-      b.append(ico, el('span', 'lvl-num', (gs.md === 'ring' ? 'Arène ' : 'Niveau ') + (i + 1) + (d.boss ? ' · boss' : '')), el('span', 'lvl-name', d.name));
+      const ico = el('span', 'lvl-ico'); ico.innerHTML = LEVEL_ICONS[d.gen ? 'gen' : d.fight ? 'fight' : d.theme] || LEVEL_ICONS.bureau;
+      b.append(ico, el('span', 'lvl-num', (gs.md === 'ring' ? 'Arène ' : gs.md === 'boss' ? 'Combat ' : 'Niveau ') + (i + 1) + (d.boss && !d.fight ? ' · boss' : '')), el('span', 'lvl-name', d.name));
       lb.appendChild(b);
     });
     lb.dataset.md = gs.md;
   }
   for (const b of lb.children) { b.setAttribute('aria-pressed', +b.dataset.v === gs.lv ? 'true' : 'false'); b.disabled = !Game.isHost; }
-  $('#lbl-level').textContent = gs.md === 'ring' ? 'Arène de départ' : 'Niveau de départ';
+  $('#lbl-level').textContent = gs.md === 'ring' ? 'Arène de départ' : gs.md === 'boss' ? 'Combat' : 'Niveau de départ';
   $('#set-diff').hidden = gs.md === 'defense';
-  $('#lbl-diff').textContent = gs.md === 'ring' ? 'Difficulté du ring' : gs.md === 'race' ? 'Difficulté des niveaux' : 'Difficulté du parcours surprise';
+  $('#lbl-diff').textContent = gs.md === 'ring' ? 'Difficulté du ring' : gs.md === 'race' ? 'Difficulté des niveaux' : gs.md === 'boss' ? 'Difficulté du boss' : 'Difficulté du parcours surprise';
   for (const b of $('#seg-diff').children) { b.setAttribute('aria-pressed', +b.dataset.v === (gs.hd | 0) ? 'true' : 'false'); b.disabled = !Game.isHost; }
-  $('#diff-hint').textContent = gs.md === 'ring'
+  $('#diff-hint').textContent = gs.md === 'boss'
+    ? ['Normal : le directeur a ses points de vie de base et 4 minutes pour vous chasser.', 'Chaos : un quart de vie en plus, moins de temps, des bombes un peu plus rares.', 'Insane : moitié plus de vie, encore moins de temps.'][gs.hd | 0]
+    : gs.md === 'ring'
     ? ['Normal : les arènes de base.', 'Chaos : chaque arène reçoit des pièges en plus (ventilateurs, balayeurs, tourelles, ennemis), de la colle sur le bord intérieur, et le bord s\'effondre plus tôt.', 'Insane : tout le Chaos, encore plus de pièges, des tampons géants, des accélérateurs qui t\'envoient vers le vide, des pluies d\'objets et des rafales de vent. Le bord tombe presque tout de suite.'][gs.hd | 0]
     : gs.md === 'race'
     ? ['Normal : les niveaux de base. Un classement par niveau et par difficulté.', 'Chaos : des pièges plus rapides, des plateformes qui cèdent ou disparaissent, des barres basses à passer en plongeon, des bonus réservés aux plongeurs. Le parcours surprise devient plus long et plus serré.', 'Insane : tout le Chaos, des sauts qui demandent saut, double saut et plongeon, des tampons géants et des pluies d\'objets qui te visent.'][gs.hd | 0]
@@ -8328,7 +9097,8 @@ function renderLobby(force) {
   const hints = {
     race: 'Départ simultané, et tous les coups sont permis : pousse, attrape, lance. Le premier au portail marque 10 points, puis 7, 5 et 3. Chaque éclat rapporte 1 point.',
     coop: 'Jouez en équipe : sautez sur la tête d\'un coéquipier pour une courte échelle, lancez-le au-dessus des trous, et si vous tombez, vous revenez à côté de lui. ' + (def.mission ? 'Les quatre défis de la mission ouvrent le portail.' : 'Ramassez tous les éclats pour ouvrir le portail.'),
-    ring: 'Chacun pour soi sur un ring : pousse, attrape et éjecte les autres. Le dernier debout gagne la manche (5, 3 puis 1 point) et chaque éjection rapporte 2 points. Le bord s\'effondre si la manche traîne.',
+    ring: 'Chacun pour soi sur un ring : pousse, attrape et éjecte les autres, sers-toi des marteaux, rouleaux et lasers. Le dernier debout gagne la manche (5, 3 puis 1 point) et chaque éjection rapporte 2 points. Toutes les 30 à 60 s, un événement : tornade, gravité réduite, vent, météorites, aimant, sol gelé, mode fantôme, commandes inversées.',
+    boss: 'Tous ensemble contre le directeur. Ramasse une bombe (clic gauche) et lance-la (clic droit), ou fais-toi lancer sur lui par un coéquipier, bombe en main. Il frappe le sol, démolit son bureau, appelle ses robots et s\'énerve à chaque phase. Battez-le avant la fin du temps.',
     defense: 'Un joueur défend, les autres courent. Le défenseur survole le parcours et déclenche tourelles, ventilateurs, trappes, pistons et portes. Le rôle tourne à chaque niveau.' + (players.length < 2 ? ' Il faut au moins 2 joueurs.' : '')
   };
   $('#mode-hint').textContent = hints[gs.md];
@@ -8370,14 +9140,18 @@ function startLevel(lv, md, sq) {
   const mePeer = (Game.players.find(p => p.sameTab) || {}).peer || null;
   Game.role = md === 'defense' && Game.gs && Game.gs.df && Game.gs.df === mePeer ? 'def' : 'run';
   const gs0 = Game.gs || {};
-  const L = setLevel(di, md, { seed: gs0.seed, diff: md === 'ring' || md === 'race' || (LEVEL_DEFS[di].gen && md === 'coop') ? gs0.hd : 0 });
+  const L = setLevel(di, md, { seed: gs0.seed, diff: md === 'ring' || md === 'race' || md === 'boss' || (LEVEL_DEFS[di].gen && md === 'coop') ? gs0.hd : 0 });
   Game.bossPhase = 0; Game.bkN = 0; Game.bkLog = []; Game.bkSeen = 0; Game.rainT = null; Game.stampT = null; Game.evT = 5;
+  ringEventEnd(); Game.revT = null; Game.revLast = -1;
   Game.myGems = new Set(); Game.union = new Set(); Game.checkIdx = -1; Game.done = false; Game.ft = null;
   Game.obs = new Set(); Game.obsU = new Set(); Game.obsKnown = new Set(); Game.ballSendT = 0; Game.lifts = 0; Game.boosts = 0; Game.missionKey = '';
   P.pushT = 0; Game.lastMissing = null;
   resetInteract(); Act.koSeen.clear(); Game.koTally = {};
   Game.closingAt = 0; Game.hostEndAt = 0; Game.hostCloseAt = 0; Game.spec = -1;
   Game.portalOpen = md !== 'coop';
+  fightInit(L, gs0.hd | 0, Game.players.length);
+  $('#hud .hud-tc').hidden = !!L.def.fight;
+  $('#hud-gems').parentNode.hidden = !!L.def.fight;
   L.setPortalOpen(Game.portalOpen, L.gems.length);
   const idx = Math.max(0, Game.players.findIndex(p => p.sameTab));
   const sp = L.spawns[idx % 4];
@@ -8399,7 +9173,7 @@ function startLevel(lv, md, sq) {
   showScreen('play');
   if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
   const def = L.def;
-  $('#hud-eyebrow').textContent = (md === 'ring' ? 'Arène ' : 'Niveau ') + (lv + 1) + ' · ' + MODE_NAMES[md] + (L.insane ? ' · Insane' : L.chaos ? ' · Chaos' : '') + (def.gen ? ' · tracé n° ' + def.seed : '') + (Game.role === 'def' ? ' · Défenseur' : '');
+  $('#hud-eyebrow').textContent = (md === 'ring' ? 'Arène ' : md === 'boss' ? 'Combat ' : 'Niveau ') + (lv + 1) + ' · ' + MODE_NAMES[md] + (L.insane ? ' · Insane' : L.chaos ? ' · Chaos' : '') + (def.gen ? ' · tracé n° ' + def.seed : '') + (Game.role === 'def' ? ' · Défenseur' : '');
   $('#hud-title').textContent = '/ ' + def.name;
   $('#hud-help').classList.remove('fade');
   clearTimeout(Game.helpTimer);
@@ -8458,7 +9232,7 @@ function collidePlayers() {
   if (P.frozen || Game.done) return;
   for (const r of Game.remotes.values()) {
     if (r.st !== 'play') continue;
-    if ((P.grab && P.grab.peer === r.peer) || P.heldBy === r.peer || (P.hang && P.hang.peer === r.peer) || Act.load.has(r.peer) || (P.heldAll && P.heldAll.some(h => h[0] === r.peer))) continue;
+    if (P.ghost || (P.grab && P.grab.peer === r.peer) || P.heldBy === r.peer || (P.hang && P.hang.peer === r.peer) || Act.load.has(r.peer) || (P.heldAll && P.heldAll.some(h => h[0] === r.peer))) continue;
     const dx = P.pos.x - r.rp.x, dz = P.pos.z - r.rp.z, dy = P.pos.y - r.rp.y;
     const d = Math.hypot(dx, dz);
     if (d > 0.84 || Math.abs(dy) > 0.98) continue;
@@ -8694,6 +9468,10 @@ function cycleSpectate() {
 function hostTick(now) {
   const gs = Game.gs;
   if (!gs || gs.ph !== 'play') return;
+  if (gs.md === 'boss') {
+    if (Game.hostEndAt && now >= Game.hostEndAt) finishLevel();
+    return;
+  }
   if (gs.md === 'ring') {
     if (!Game.running) return;
     const a = ringAlive();
@@ -8721,6 +9499,7 @@ function finishLevel() {
   Game.hostEndAt = 0; Game.hostCloseAt = 0;
   if (gs.md === 'ring') return finishRing(gs);
   if (gs.md === 'defense') return finishDefense(gs);
+  if (gs.md === 'boss') return finishFight(gs);
   const parts = Game.players.slice(0, MAX_PLAYERS), coop = gs.md === 'coop';
   const rows = parts.map(p => {
     const pr = p.presence, inLv = pr.sq === gs.sq;
@@ -8769,6 +9548,24 @@ function finishLevel() {
   setGs(Object.assign(resBase(gs), { tot, nm, team, aw: aw.slice(0, 4), res: rows.map(r => [r.k, r.n, r.c, r.ft, r.g, r.pts]) }));
 }
 const plural = (n, w) => n + ' ' + w + (n > 1 ? 's' : '');
+// Boss mode: did the team beat him, and who hurt him most (1 point per damage, +10 each for a win)
+function finishFight(gs) {
+  const F = Game.fight, parts = Game.players.slice(0, MAX_PLAYERS), hp = fightHP(), win = hp <= 0;
+  const rows = parts.map(p => {
+    const pr = p.presence, me = p.sameTab, inLv = pr.sq === gs.sq;
+    return { k: p.peer, n: cleanName(pr.n) || 'Joueur', c: +pr.c || 0, dmg: me ? (F ? F.dealt : 0) : (inLv ? Math.max(0, +pr.bd || 0) : 0), fl: me ? Game.falls : (inLv ? Math.max(0, +pr.fl || 0) : 0), tw: me ? Act.throws : Math.max(0, +pr.tw || 0) };
+  });
+  rows.sort((a, b) => b.dmg - a.dmg);
+  for (const r of rows) r.pts = r.dmg + (win ? 10 : 0);
+  const aw = [], art = topRow(rows, 'dmg'), cat = topRow(rows, 'tw'), fal = topRow(rows, 'fl');
+  if (art) aw.push(['Artificier', art.n, art.c, plural(art.dmg, 'dégât')]);
+  if (cat) aw.push(['Lanceur de collègues', cat.n, cat.c, plural(cat.tw, 'lancer')]);
+  if (fal) aw.push(['Roi de la chute', fal.n, fal.c, plural(fal.fl, 'chute')]);
+  const tot = Object.assign({}, gs.tot), nm = Object.assign({}, gs.nm);
+  for (const r of rows) { tot[r.k] = (+tot[r.k] || 0) + r.pts; nm[r.k] = [r.n, r.c]; }
+  const team = { win: win ? 1 : 0, hp, max: F ? F.max : 0, ft: Math.round(Game.elapsed) };
+  setGs(Object.assign(resBase(gs), { tot, nm, team, aw, res: rows.map(r => [r.k, r.n, r.c, r.dmg, r.fl, r.pts]) }));
+}
 // what every results state carries: `pt` (totals before this level) lets « Rejouer » replace the score
 function resBase(gs) { return { ph: 'res', md: gs.md, lv: gs.lv, sq: gs.sq, pt: gs.tot, seed: gs.seed, hd: gs.hd, df: gs.df, dc: gs.dc }; }
 function topRow(rows, key) { return rows.reduce((a, r) => (r[key] > (a ? a[key] : 0) ? r : a), null); }
@@ -8828,6 +9625,8 @@ function updatePlay(dt, now) {
   const def = Game.role === 'def';
   const inputOn = !P.frozen && !Game.done && !Game.paused && !def;
   interactTick(dt, now);
+  ringEventTick(dt);
+  fightTick(dt);
   if (Input.jumpEdge && !def) {
     if (P.heldBy || P.hang || P.ledge) escapePress();
     else if (inputOn) P.buffer = PH.buffer;
@@ -8966,7 +9765,7 @@ function hudTick(dt, now) {
     const d = el('span', 'dot'); d.style.setProperty('--c', PCOLORS[r.pr.c] || PCOLORS[0]);
     li.appendChild(d);
     li.appendChild(el('span', 'hp-name', cleanName(r.pr.n) || 'Joueur'));
-    const val = r.isDef ? 'Défenseur' : ring ? (r.out ? 'Éliminé' : r.kos ? plural(r.kos, 'éjection') : 'En lice') : r.done ? (coop ? 'Arrivé' : fmtTime(r.ft)) : r.g + (r.g > 1 ? ' éclats' : ' éclat');
+    const val = Game.mode === 'boss' ? plural(Math.max(0, +r.pr.bd || 0), 'dégât') : r.isDef ? 'Défenseur' : ring ? (r.out ? 'Éliminé' : r.kos ? plural(r.kos, 'éjection') : 'En lice') : r.done ? (coop ? 'Arrivé' : fmtTime(r.ft)) : r.g + (r.g > 1 ? ' éclats' : ' éclat');
     li.appendChild(el('span', 'hp-val', val));
     ul.appendChild(li);
   });
@@ -9003,6 +9802,7 @@ function renderMission(force) {
 
 // ---------- results ----------
 function showResults(gs) {
+  $('#bossbar').hidden = true; $('#evbanner').hidden = true;
   const final = gs.ph === 'final', coop = gs.md === 'coop', ring = gs.md === 'ring', defm = gs.md === 'defense';
   const key = gs.ph + gs.sq;
   if ((Game.screen === 'results' || Game.screen === 'final') && Game.resKey === key) { renderResultButtons(gs); return; }
@@ -9033,7 +9833,17 @@ function showResults(gs) {
   if (!final) {
     $('#res-eyebrow').textContent = (ring ? 'Arène ' : 'Niveau ') + (gs.lv + 1) + ' · ' + MODE_NAMES[gs.md] + ((ring || gs.md === 'race' || (def.gen && coop)) && gs.hd ? (gs.hd > 1 ? ' · Insane' : ' · Chaos') : '') + (def.gen ? ' · tracé n° ' + gs.seed : '');
     $('#res-title').textContent = ring ? '/ Manche terminée' : '/ Niveau ' + (gs.lv + 1) + ' terminé';
-    if (ring) {
+    if (gs.md === 'boss') {
+      const tm = gs.team || {};
+      $('#res-title').textContent = tm.win ? '/ Le directeur est vaincu' : '/ Le directeur a gagné';
+      $('#res-sub').textContent = tm.win ? 'Bravo l\'équipe : il a tenu ' + fmtTime(tm.ft) + '.' : 'Il lui restait ' + tm.hp + ' points de vie sur ' + tm.max + '. Rejouez pour l\'achever.';
+      th('#'); th('Joueur'); th('Dégâts', true); th('Chutes', true); th('Points', true); th('Total', true);
+      gs.res.forEach((r, i) => {
+        const tr = el('tr', i === 0 ? 'first' : '');
+        tr.append(el('td', 'rank', String(i + 1)), who(cleanName(r[1]), r[2]), el('td', 'num', String(r[3] || 0)), el('td', 'num', String(r[4] || 0)), el('td', 'num pts', '+' + (r[5] || 0)), el('td', 'num', String(gs.tot[r[0]] || 0)));
+        body.appendChild(tr);
+      });
+    } else if (ring) {
       const win = gs.res.find(r => r[3]);
       $('#res-sub').textContent = win ? cleanName(win[1]) + ' reste seul sur « ' + def.name + ' ».' : 'Tout le monde est tombé de « ' + def.name + ' » : le dernier à tomber l\'emporte.';
       th('#'); th('Joueur'); th('Éjections', true); th('Points', true); th('Total', true);
@@ -9278,6 +10088,7 @@ const LEVEL_ICONS = (() => {
     noel: w('<path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9"/><path d="M9.5 4.5 12 7l2.5-2.5M9.5 19.5 12 17l2.5 2.5"/>'),
     parc: w('<circle cx="12" cy="10" r="6"/><path d="M12 16v5M9 21h6"/>'),
     direction: w('<path d="M7.5 17V6.5h9V17"/><path d="M3.5 17h17"/><path d="M7.5 13.5h9"/>'),
+    fight: w('<circle cx="12" cy="13" r="6.5"/><path d="M15.5 7.5 18 5M17 3.5l1.5 1.5"/><path d="M9.5 13.5a2.5 2.5 0 0 1 2.5-2.5"/>'),
     gen: w('<rect x="4" y="4" width="16" height="16" rx="4"/><circle cx="9" cy="9" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="15" cy="15" r="1.3" fill="currentColor" stroke="none"/>')
   };
 })();
