@@ -998,6 +998,24 @@ const TUNES = {
         [[0, 'Bb5', 4], [4, 'A5', 2], [6, 'G5', 2], [8, 'F5', 8]]] }
     ]
   }),
+  // l'usine: a mechanical groove, clanks and a brass riff
+  usine: () => ({
+    bpm: 112, swing: 0.04, fx: 0.24, prog: ['Am', 'F', 'G', 'E'],
+    parts: [
+      { k: 'bass', inst: 'bass', vol: 0.45, oct: 2, rh: 'x.xx..x.x.xx..x.', deg: 'r r o r 5 r o 5' },
+      { k: 'drum', d: 'kick', vol: 0.48, rh: 'x...x...x...x...' },
+      { k: 'drum', d: 'snare', vol: 0.24, rh: '....x.......x..x' },
+      { k: 'drum', d: 'rim', vol: 0.22, rh: '..x..x..x..x.x..' },
+      { k: 'drum', d: 'hat', vol: 0.16, rh: 'x.xxx.xxx.xxx.xx' },
+      { k: 'drum', d: 'tom', vol: 0.16, rh: '...........x.x..', f: 90 },
+      { k: 'chord', inst: 'organ', vol: 0.05, oct: 3, rh: 'x.....x...x.....', len: 1 },
+      { k: 'mel', inst: 'brass', vol: 0.1, loop: 8, from: 4, bars: [
+        [[0, 'A4', 2], [3, 'C5', 1], [4, 'E5', 2], [8, 'D5', 2], [10, 'C5', 2], [12, 'A4', 4]],
+        [[0, 'F4', 2], [3, 'A4', 1], [4, 'C5', 2], [8, 'B4', 2], [10, 'A4', 2], [12, 'F4', 4]],
+        [[0, 'G4', 2], [3, 'B4', 1], [4, 'D5', 2], [8, 'E5', 2], [10, 'D5', 2], [12, 'B4', 4]],
+        [[0, 'E5', 4], [4, 'D5', 2], [6, 'C5', 2], [8, 'B4', 4], [12, 'G#4', 4]]] }
+    ]
+  }),
   // le directeur: an epic theme that grows with each boss phase (intensity 0 to 5)
   boss: () => ({
     bpm: I => [84, 88, 92, 96, 100, 108][I] || 84, swing: 0, fx: 0.32, tr: I => (I >= 5 ? 1 : 0), prog: ['Cm', 'Ab', 'Fm', 'G'],
@@ -1447,7 +1465,8 @@ const SLOW_LOOK = {
   direction: { c: '#7CCAD6', e: '#DDE6EE', o: 0.9, r: 0.06, blobs: '#C9EEF3', glow: '#5FB8C6' },
   halloween: { c: '#3E5A2A', e: '#7EBD4B', o: 0.95, r: 0.2, blobs: '#9CD46A', glow: '#7EBD4B' },
   noel: { c: '#C4DCF2', e: '#DCEBF7', o: 1, r: 0.9, blobs: '#F4FAFF', glow: '#9CC6EC' },
-  parc: { c: '#5A3B22', e: '#3A2414', o: 1, r: 0.25, blobs: '#6E4A2C' }
+  parc: { c: '#5A3B22', e: '#3A2414', o: 1, r: 0.25, blobs: '#6E4A2C' },
+  usine: { c: '#26221E', e: '#3A332C', o: 0.94, r: 0.1, blobs: '#4A4038' }
 };
 function slowPatch(L, p, h) {
   const k = SLOW_LOOK[L.def.theme] || SLOW_LOOK.bureau, g = new THREE.Group();
@@ -1597,6 +1616,7 @@ class Level {
       else if (o.type === 'zones') this.addZones(o);
       else if (o.type === 'spin') this.addSpinner(o);
       else if (o.type === 'hatch') this.addHatches(o);
+      else if (o.type === 'press') this.addPress(o);
       else if (o.type === 'foe' && (!o.solo || opts.solo)) this.addFoe(o);
     });
     this.addGizmos();
@@ -4095,6 +4115,450 @@ function fanCage(L, r, ringMat, bladeMat, hubMat) {
   };
 })();
 
+// ===================== l'usine: steel decks, conveyor belts, cranes and hydraulic presses =====================
+// A decor built on the office one (its gizmos, foes and hazards are inherited) with its own platforms,
+// supports and factory hall. Conveyor belts are platforms with `belt: [vx, vz]` (the carry is in
+// stepPlayer); hydraulic presses are obstacles (`ob('press', …)`) that slam down on a steady beat.
+const USINE_COLS = ['#DC7046', '#16345E', '#2A6F86', '#C9A23A'];
+function usineMats(L) {
+  const M = Object.assign({}, officeMats(L));
+  const plate = L.tex('usPlate', [256, 256], (x, w, h, R) => {
+    x.fillStyle = '#8F979F'; x.fillRect(0, 0, w, h);
+    PAINT.speckle(x, w, h, R, 900, ['#7E868E', '#A3AAB1'], 0.5, 1.4, 0.3, 0.6);
+    // raised diamond tread
+    for (let j = 0; j < 8; j++) for (let i = 0; i < 8; i++) {
+      const a = (i + j) % 2 ? 0.7 : -0.7;
+      wrapAt(w, h, (i + 0.5) * w / 8, (j + 0.5) * h / 8, 14, (px, py) => {
+        x.save(); x.translate(px, py); x.rotate(a);
+        x.fillStyle = 'rgba(40,46,52,0.5)'; x.fillRect(-9, 0, 18, 3);
+        x.fillStyle = 'rgba(235,240,245,0.6)'; x.fillRect(-9, -3, 18, 3);
+        x.restore();
+      });
+    }
+  }, { repeat: [0.5, 0.5] });
+  M.plate = L.pbr('usPlateM', { map: plate, bumpMap: plate, bumpScale: 0.02, metalness: 0.6, roughness: 0.42 });
+  M.girder = L.pbr('usGirder', { color: '#3A4757', metalness: 0.45, roughness: 0.5 });
+  M.dark = L.pbr('usDark', { color: '#23282F', metalness: 0.5, roughness: 0.5 });
+  M.yellow = L.pbr('usYellow', { color: '#E8B21E', roughness: 0.5 });
+  M.orange = L.pbr('usOrange', { color: '#DC7046', roughness: 0.5 });
+  M.chrome = L.pbr('usChrome', { color: '#C9D0D6', metalness: 0.95, roughness: 0.18 });
+  const haz = L.tex('usHaz', [128, 32], (x, w, h) => {
+    x.fillStyle = '#E8B21E'; x.fillRect(0, 0, w, h); x.fillStyle = '#1E2228';
+    for (let i = -1; i < 5; i++) { x.beginPath(); x.moveTo(i * 32, h); x.lineTo(i * 32 + 16, 0); x.lineTo(i * 32 + 32, 0); x.lineTo(i * 32 + 16, h); x.fill(); }
+  });
+  M.haz = L.pbr('usHazM', { map: haz, roughness: 0.55 });
+  const wood = L.tex('usWood', [256, 256], (x, w, h, R) => {
+    PAINT.grain(x, w, h, R, '#C9A26B', '#A47E4C', '#DDBB86');
+    x.fillStyle = 'rgba(70,45,20,0.55)'; for (let i = 0; i < 4; i++) x.fillRect(0, i * h / 4, w, 4);
+  }, { repeat: [0.5, 0.5] });
+  M.wood = L.pbr('usWoodM', { map: wood, roughness: 0.8 });
+  M.woodDark = L.pbr('usWoodD', { color: '#8A6236', roughness: 0.8 });
+  const conc = L.tex('usConcrete', [512, 512], (x, w, h, R) => {
+    x.fillStyle = '#9C988F'; x.fillRect(0, 0, w, h);
+    PAINT.blotch(x, w, h, R, 90, ['#8E8A82', '#ABA79E', '#86827A'], 20, 90, 0.35);
+    PAINT.speckle(x, w, h, R, 5000, ['#7A766F', '#B5B1A8'], 0.4, 1.3, 0.3, 0.6);
+    PAINT.blotch(x, w, h, R, 10, ['#5E5A54'], 20, 60, 0.18);
+    PAINT.cracks(x, w, h, R, 8, '#6A665F', 0.6, 10);
+    x.fillStyle = 'rgba(60,56,50,0.5)'; x.fillRect(0, 0, w, 3); x.fillRect(0, 0, 3, h);
+  }, { repeat: [1 / 16, 1 / 16] });
+  M.concrete = L.pbr('usConcreteM', { map: conc, roughness: 0.9 });
+  M.cont = c => L.pbr('usCont' + c, { metalness: 0.3, roughness: 0.55, map: L.tex('usContT' + c, [256, 256], (x, w, h, R) => {
+    x.fillStyle = c; x.fillRect(0, 0, w, h);
+    for (let i = 0; i < w; i += 16) { x.fillStyle = 'rgba(0,0,0,0.16)'; x.fillRect(i, 0, 4, h); x.fillStyle = 'rgba(255,255,255,0.12)'; x.fillRect(i + 9, 0, 3, h); }
+    PAINT.speckle(x, w, h, R, 500, ['rgba(60,40,30,0.5)', 'rgba(255,255,255,0.3)'], 0.5, 1.6, 0.2, 0.5);
+  }, { repeat: [0.5, 0.5] }) });
+  M.wallT = L.tex('usWall', [256, 256], (x, w, h, R) => {
+    x.fillStyle = '#B9B4AA'; x.fillRect(0, 0, w, h);
+    for (let i = 0; i < w; i += 16) { x.fillStyle = 'rgba(0,0,0,0.12)'; x.fillRect(i, 0, 5, h); x.fillStyle = 'rgba(255,255,255,0.14)'; x.fillRect(i + 9, 0, 3, h); }
+    PAINT.blotch(x, w, h, R, 14, ['rgba(110,90,70,1)'], 10, 50, 0.08);
+  });
+  M.belt = L.pbr('usBeltBody', { color: '#2B2F35', roughness: 0.7 });
+  return M;
+}
+// a hazard-striped band `len` long, `hgt` high, facing +z before rotation `ry`
+function usHazBand(L, M, len, hgt, pos, ry) {
+  const key = 'usBand' + len.toFixed(2) + '|' + hgt.toFixed(2);
+  L._usG = L._usG || {};
+  if (!L._usG[key]) {
+    const g = new THREE.PlaneGeometry(len, hgt), uv = g.attributes.uv;
+    for (let i = 0; i < uv.count; i++) uv.setX(i, uv.getX(i) * len / 2);
+    L._usG[key] = L.ownGeo(g);
+  }
+  return L.mesh(L._usG[key], M.haz, { p: pos, r: [0, ry, 0] });
+}
+function usVariant(p, idx) { return p.w >= 8 || p.d >= 8 ? 'deck' : ['deck', 'container', 'crate'][idx % 3]; }
+// an I-beam column from y0 to y1 (merged into `parts`)
+function usIBeam(parts, x, z, y0, y1, ry) {
+  const hgt = y1 - y0, cy = (y0 + y1) / 2;
+  parts.push(placed(boxGeo(0.08, hgt, 0.36), [x, cy, z], [0, ry || 0, 0]));
+  parts.push(placed(boxGeo(0.36, hgt, 0.06), [x + Math.sin(ry || 0) * 0.18, cy, z + Math.cos(ry || 0) * 0.18], [0, ry || 0, 0]));
+  parts.push(placed(boxGeo(0.36, hgt, 0.06), [x - Math.sin(ry || 0) * 0.18, cy, z - Math.cos(ry || 0) * 0.18], [0, ry || 0, 0]));
+}
+// conveyor belt: steel frame, rollers at both ends and a rubber belt with chevrons that scroll
+function usBelt(L, M, p, h) {
+  const g = new THREE.Group(), bx = p.belt[0], bz = p.belt[1], sp = Math.hypot(bx, bz) || 1;
+  const alongX = Math.abs(bx) > Math.abs(bz), len = alongX ? p.w : p.d, wid = alongX ? p.d : p.w;
+  g.add(L.mesh(boxGeo(p.w, h - 0.16, p.d), M.girder, { p: [0, -0.08, 0], cast: true }));
+  // rollers across the ends and kerbs along the sides
+  const ends = new THREE.Group(); ends.rotation.y = alongX ? Math.PI / 2 : 0;
+  for (const s of [-1, 1]) {
+    ends.add(L.mesh(cylGeo(h * 0.42, h * 0.42, wid - 0.1, 16), M.dark, { p: [0, h / 2 - h * 0.42, s * (len / 2 - h * 0.3)], r: [0, 0, Math.PI / 2] }));
+    ends.add(L.mesh(boxGeo(0.16, 0.18, len), M.yellow, { p: [s * (wid / 2 - 0.08), h / 2 - 0.09, 0] }));
+  }
+  g.add(ends);
+  // the belt itself
+  const tile = 1.2, key = 'usChev' + sp.toFixed(2);
+  const tex = L.tex(key, [128, 128], (x, w, hh) => {
+    x.fillStyle = '#2B2F35'; x.fillRect(0, 0, w, hh);
+    x.fillStyle = 'rgba(255,255,255,0.05)'; for (let i = 0; i < hh; i += 8) x.fillRect(0, i, w, 2);
+    x.fillStyle = 'rgba(232,178,30,0.85)';
+    x.beginPath(); x.moveTo(w * 0.18, hh * 0.72); x.lineTo(w * 0.5, hh * 0.3); x.lineTo(w * 0.82, hh * 0.72); x.lineTo(w * 0.7, hh * 0.8); x.lineTo(w * 0.5, hh * 0.52); x.lineTo(w * 0.3, hh * 0.8); x.closePath(); x.fill();
+  });
+  const mat = L.pbr('usBeltM' + key, { map: tex, roughness: 0.75 });
+  const geo = new THREE.PlaneGeometry(wid - 0.32, len);
+  const uv = geo.attributes.uv;
+  for (let i = 0; i < uv.count; i++) uv.setY(i, uv.getY(i) * len / tile);
+  geo.rotateX(-Math.PI / 2);
+  const m = L.mesh(L.ownGeo(geo), mat, { p: [0, h / 2 + 0.008, 0] });
+  m.rotation.y = Math.atan2(-bx / sp, -bz / sp);
+  g.add(m);
+  L._usBelts = L._usBelts || {};
+  if (!L._usBelts[key]) { L._usBelts[key] = true; L.anims.push(dt => { tex.offset.y -= sp * dt / tile; }); }
+  return g;
+}
+
+THEMES_DEF.usine = Object.assign(Object.create(THEMES_DEF.bureau), {
+  label: 'Usine',
+  floorDepth: 16,
+  env: { background: '#BDB6AA', sky: null, fog: ['#BDB6AA', 85, 320], hemi: ['#FFF1DC', '#5E5850', 0.55], sun: ['#FFE6C2', 1.3, [-40, 70, -25]], exposure: 1.0, envColors: ['#FFF4E4', '#CFC8BC', '#5E5850'], envPanels: true },
+  gemEm: 0.32, gemGlow: 0, shadowA: 0.45, portalColors: [TOK.terra, TOK.peach, TOK.royal], maxOrbit: 38, maxOrbitH: 26,
+  mats(L) { return L._m || (L._m = usineMats(L)); },
+  platform(L, p, h, idx) {
+    // Ring tiles, partitions, drawers and trapdoors: the office pieces
+    if (p.ringTile != null || p.prop || p.piston || p.blink || p.trap) return THEMES_DEF.bureau.platform.call(this, L, p, h, idx);
+    const M = this.mats(L), g = new THREE.Group();
+    if (p.belt) return usBelt(L, M, p, h);
+    if (p.move) {
+      // a steel plate hanging from a crane: four cables up to a hook block
+      g.add(L.mesh(boxGeo(p.w, h * 0.5, p.d), M.plate, { p: [0, h / 2 - h * 0.25, 0], cast: true }));
+      for (const s of [-1, 1]) g.add(usHazBand(L, M, p.w, 0.22, [0, h / 2 - 0.2, s * (p.d / 2 + 0.005)], s > 0 ? 0 : Math.PI));
+      const hookY = h / 2 + 5.5, parts = [];
+      for (const [cx, cz] of corners(p, 0.3)) parts.push(beam(new THREE.Vector3(cx, h / 2, cz), new THREE.Vector3(0, hookY, 0), 0.035, 0.035, 5));
+      parts.push(placed(cylGeo(0.05, 0.05, 40, 5), [0, hookY + 20.6, 0]));
+      g.add(L.mesh(L.ownGeo(mergeGeos(parts)), M.dark));
+      g.add(L.mesh(boxGeo(0.9, 1.1, 0.5), M.yellow, { p: [0, hookY + 0.4, 0], cast: true }));
+      g.add(L.mesh(torGeo(0.35, 0.09, 8, 20, Math.PI * 1.4), M.chrome, { p: [0, hookY - 0.35, 0], r: [0, Math.PI / 2, Math.PI * 0.8] }));
+      return g;
+    }
+    if (p.kind === 'crumble') {
+      // a wooden pallet: three boards over three blocks
+      const bw = p.w / 3;
+      for (let i = 0; i < 3; i++) g.add(L.mesh(boxGeo(bw - 0.12, 0.16, p.d), M.wood, { p: [(i - 1) * bw, h / 2 - 0.08, 0], cast: true }));
+      for (let i = 0; i < 3; i++) g.add(L.mesh(boxGeo(p.w, h - 0.16, 0.5), M.woodDark, { p: [0, -0.08, (i - 1) * (p.d / 2 - 0.25)], cast: true }));
+      return g;
+    }
+    const v = usVariant(p, idx);
+    if (v === 'deck') {
+      g.add(L.mesh(boxGeo(p.w, h - 0.1, p.d), M.girder, { p: [0, -0.05, 0], cast: true }));
+      g.add(L.mesh(boxGeo(p.w, 0.1, p.d), M.plate, { p: [0, h / 2 - 0.05, 0] }));
+      for (const s of [-1, 1]) {
+        g.add(usHazBand(L, M, p.w, 0.26, [0, h / 2 - 0.24, s * (p.d / 2 + 0.005)], s > 0 ? 0 : Math.PI));
+        g.add(usHazBand(L, M, p.d, 0.26, [s * (p.w / 2 + 0.005), h / 2 - 0.24, 0], s * Math.PI / 2));
+      }
+    } else if (v === 'container') {
+      g.add(L.mesh(boxGeo(p.w, h, p.d), M.cont(USINE_COLS[idx % USINE_COLS.length]), { cast: true }));
+      for (const [cx, cz] of corners(p, 0.12)) g.add(L.mesh(boxGeo(0.26, h + 0.02, 0.26), M.dark, { p: [cx, 0, cz] }));
+    } else {
+      g.add(L.mesh(boxGeo(p.w - 0.1, h - 0.1, p.d - 0.1), M.wood, { cast: true }));
+      for (const s of [-1, 1]) for (const t of [-1, 1]) {
+        g.add(L.mesh(boxGeo(p.w, 0.16, 0.16), M.woodDark, { p: [0, s * (h / 2 - 0.08), t * (p.d / 2 - 0.08)] }));
+        g.add(L.mesh(boxGeo(0.16, 0.16, p.d), M.woodDark, { p: [t * (p.w / 2 - 0.08), s * (h / 2 - 0.08), 0] }));
+      }
+    }
+    return g;
+  },
+  support(L, p, h, idx) {
+    const M = this.mats(L), g = new THREE.Group();
+    const bottom = p.top - h, span = bottom - L.floorY;
+    if (span < 0.3) return null;
+    const v = p.belt ? 'deck' : usVariant(p, idx);
+    if (v === 'container') {
+      // more containers stacked down to the floor
+      const R = rng(idx * 13 + 7);
+      let y = bottom, k = idx + 1;
+      while (y > L.floorY + 0.1) {
+        const bh = Math.min(y - L.floorY, 2.6), w = p.w * (0.96 + R() * 0.08), d = p.d * (0.96 + R() * 0.08);
+        g.add(L.mesh(boxGeo(w, bh, d), M.cont(USINE_COLS[k++ % USINE_COLS.length]), { p: [p.x + (R() - 0.5) * 0.3, y - bh / 2, p.z + (R() - 0.5) * 0.3], cast: true }));
+        y -= bh;
+      }
+      return g;
+    }
+    const parts = [], br = [];
+    if (v === 'crate') {
+      // pallet rack: blue uprights, orange beams, a crate on each level
+      for (const [lx, lz] of corners(p, 0.2)) parts.push(placed(boxGeo(0.14, span, 0.14), [p.x + lx, L.floorY + span / 2, p.z + lz]));
+      for (let y = bottom - 0.1; y > L.floorY + 0.8; y -= 2.6) for (const s of [-1, 1]) br.push(placed(boxGeo(p.w - 0.2, 0.18, 0.1), [p.x, y, p.z + s * (p.d / 2 - 0.2)]));
+      g.add(L.mesh(L.ownGeo(mergeGeos(parts)), M.royal || L.pbr('usRack', { color: '#2A5C9A', roughness: 0.5 }), { cast: true }));
+      if (br.length) g.add(L.mesh(L.ownGeo(mergeGeos(br)), M.orange));
+      for (let y = bottom - 2.7; y > L.floorY + 0.3; y -= 2.6) g.add(L.mesh(boxGeo(p.w * 0.6, Math.min(1.6, y - L.floorY), p.d * 0.6), M.wood, { p: [p.x, y - Math.min(1.6, y - L.floorY) / 2 + 0.01, p.z] }));
+      return g;
+    }
+    // steel deck: I-beam legs and cross bracing on the long sides
+    const cs = corners(p, 0.45);
+    for (const [lx, lz] of cs) usIBeam(parts, p.x + lx, p.z + lz, L.floorY, bottom, 0);
+    const long = p.d >= p.w, n = Math.max(1, Math.round(span / 6));
+    for (const s of [-1, 1]) {
+      const a = long ? [p.x + s * (p.w / 2 - 0.45), p.z - p.d / 2 + 0.45] : [p.x - p.w / 2 + 0.45, p.z + s * (p.d / 2 - 0.45)];
+      const b = long ? [p.x + s * (p.w / 2 - 0.45), p.z + p.d / 2 - 0.45] : [p.x + p.w / 2 - 0.45, p.z + s * (p.d / 2 - 0.45)];
+      for (let i = 0; i < n; i++) {
+        const y0 = bottom - i * span / n, y1 = bottom - (i + 1) * span / n;
+        br.push(beam(new THREE.Vector3(a[0], y0, a[1]), new THREE.Vector3(b[0], y1, b[1]), 0.06, 0.06, 5));
+        br.push(beam(new THREE.Vector3(b[0], y0, b[1]), new THREE.Vector3(a[0], y1, a[1]), 0.06, 0.06, 5));
+      }
+    }
+    g.add(L.mesh(L.ownGeo(mergeGeos(parts)), M.girder, { cast: true }));
+    g.add(L.mesh(L.ownGeo(mergeGeos(br)), M.dark));
+    return g;
+  },
+  // a spring plate instead of the whoopee cushion
+  pad(L) {
+    const M = this.mats(L), g = new THREE.Group();
+    for (let i = 0; i < 3; i++) g.add(L.mesh(torGeo(0.5, 0.06, 6, 20), M.chrome, { p: [0, 0.06 + i * 0.07, 0], r: [Math.PI / 2, 0, 0] }));
+    g.add(L.mesh(cylGeo(0.85, 0.85, 0.08, 24), L.pbr('usSpring', { color: '#E0313E', roughness: 0.45 }), { p: [0, 0.24, 0], cast: true }));
+    g.add(L.mesh(cylGeo(0.4, 0.4, 0.09, 20), M.yellow, { p: [0, 0.25, 0] }));
+    return g;
+  },
+  // a beacon that spins orange, then green once reached
+  checkpoint(L) {
+    const M = this.mats(L), grp = new THREE.Group();
+    grp.add(L.mesh(cylGeo(0.08, 0.08, 2.2, 10), M.girder, { p: [0, 1.1, 0], cast: true }));
+    const lampMat = new THREE.MeshStandardMaterial({ color: col('#F08A2E'), emissive: col('#F08A2E'), emissiveIntensity: 0.6, roughness: 0.3, transparent: true, opacity: 0.92 });
+    L.own.push(lampMat);
+    grp.add(L.mesh(cylGeo(0.22, 0.26, 0.12, 16), M.dark, { p: [0, 2.26, 0] }));
+    grp.add(L.mesh(sphGeo(0.24, 16, 10), lampMat, { p: [0, 2.4, 0], s: [1, 1.3, 1] }));
+    const spin = new THREE.Group(); spin.position.y = 2.42;
+    const glow = L.glow('#F08A2E', 1.4, 0.5); glow.position.x = 0.3; spin.add(glow);
+    grp.add(spin);
+    L.anims.push(dt => { spin.rotation.y += dt * 5; });
+    return { grp, setOn() { lampMat.color.copy(col(TOK.vivid)); lampMat.emissive = col(TOK.vivid); glow.material.color = col(TOK.vivid); } };
+  },
+  // the finish gate: a steel ring with a hazard band
+  portal(L) {
+    const M = this.mats(L), g = new THREE.Group();
+    g.add(L.mesh(torGeo(2.25, 0.42, 14, 48), M.girder, { cast: true }));
+    g.add(L.mesh(torGeo(2.25, 0.44, 14, 48), M.haz, { s: [1, 1, 0.55] }));
+    for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; g.add(L.mesh(boxGeo(0.3, 0.3, 0.95), M.dark, { p: [Math.cos(a) * 2.25, Math.sin(a) * 2.25, 0] })); }
+    return g;
+  },
+  // an oil drum with a hazard band
+  bumper(L, r) {
+    const M = this.mats(L), g = new THREE.Group(), hgt = 1.4;
+    g.add(L.mesh(cylGeo(r, r, hgt, 24), L.pbr('usDrum', { color: '#2A6F86', metalness: 0.4, roughness: 0.45 }), { p: [0, hgt / 2, 0], cast: true }));
+    for (const y of [0.35, 1.05]) g.add(L.mesh(cylGeo(r * 1.02, r * 1.02, 0.08, 24), M.dark, { p: [0, y, 0] }));
+    g.add(L.mesh(cylGeo(r * 1.01, r * 1.01, 0.26, 24, true), M.haz, { p: [0, hgt * 0.5 + 0.18, 0] }));
+    g.add(L.mesh(cylGeo(0.12, 0.12, 0.06, 10), M.dark, { p: [r * 0.5, hgt + 0.03, 0] }));
+    return { obj: g, hgt };
+  },
+  environment(L) {
+    const M = this.mats(L), g = new THREE.Group(), b = L.b, R = rng(5151);
+    L.root.add(g);
+    const W = 50, z0 = b.zMax + 46, z1 = b.zMin - 52, F = L.floorY, Hh = 58, CY = F + Hh;
+    const zl = z0 - z1, zc = (z0 + z1) / 2;
+    // concrete floor with painted lanes
+    g.add(L.mesh(L.ownGeo(worldUV(new THREE.PlaneGeometry(W * 2, zl).rotateX(-Math.PI / 2), 1)), M.concrete, { p: [0, F, zc] }));
+    for (const x of [-16, 16]) g.add(L.mesh(boxGeo(0.5, 0.03, zl), M.yellow, { p: [x, F + 0.02, zc], receive: true }));
+    for (let z = z1 + 30; z < z0 - 20; z += 60) { const band = usHazBand(L, M, 31.5, 1.2, [0, F + 0.03, z], 0); band.rotation.x = -Math.PI / 2; g.add(band); }
+    // corrugated walls
+    const wallTex = M.wallT.clone(); wallTex.needsUpdate = true; wallTex.repeat.set(zl / 4, Hh / 8); L.own.push(wallTex);
+    const wallZT = M.wallT.clone(); wallZT.needsUpdate = true; wallZT.repeat.set(W / 2, Hh / 8); L.own.push(wallZT);
+    const wallM = L.pbr('usWallM', { map: wallTex, metalness: 0.3, roughness: 0.6 }), wallEnd = L.pbr('usWallE', { map: wallZT, metalness: 0.3, roughness: 0.6 });
+    g.add(L.mesh(L.ownGeo(new THREE.PlaneGeometry(zl, Hh)), wallM, { p: [-W, F + Hh / 2, zc], r: [0, Math.PI / 2, 0] }));
+    g.add(L.mesh(L.ownGeo(new THREE.PlaneGeometry(W * 2, Hh)), wallEnd, { p: [0, F + Hh / 2, z1] }));
+    g.add(L.mesh(L.ownGeo(new THREE.PlaneGeometry(W * 2, Hh)), wallEnd, { p: [0, F + Hh / 2, z0], r: [0, Math.PI, 0] }));
+    // right wall: a band of clerestory windows
+    const winY0 = F + 30, winY1 = F + 44;
+    const lowT = M.wallT.clone(); lowT.needsUpdate = true; lowT.repeat.set(zl / 4, (winY0 - F) / 8); L.own.push(lowT);
+    g.add(L.mesh(L.ownGeo(new THREE.PlaneGeometry(zl, winY0 - F)), L.pbr('usWallL', { map: lowT, metalness: 0.3, roughness: 0.6 }), { p: [W, F + (winY0 - F) / 2, zc], r: [0, -Math.PI / 2, 0] }));
+    g.add(L.mesh(L.ownGeo(new THREE.PlaneGeometry(zl, CY - winY1)), wallM, { p: [W, winY1 + (CY - winY1) / 2, zc], r: [0, -Math.PI / 2, 0] }));
+    g.add(L.mesh(L.ownGeo(new THREE.PlaneGeometry(zl, winY1 - winY0)), L.basic('usGlass', { color: '#F4EEDF', toneMapped: false, fog: false }), { p: [W + 0.4, (winY0 + winY1) / 2, zc], r: [0, -Math.PI / 2, 0], receive: false }));
+    const mull = [];
+    for (let z = z1; z <= z0; z += 5) mull.push(placed(boxGeo(0.6, winY1 - winY0, 0.4), [W, (winY0 + winY1) / 2, z]));
+    mull.push(placed(boxGeo(0.6, 0.5, zl), [W, (winY0 + winY1) / 2, zc]));
+    g.add(L.mesh(L.ownGeo(mergeGeos(mull)), M.dark));
+    // roof: dark deck, trusses and skylights
+    g.add(L.mesh(L.ownGeo(new THREE.PlaneGeometry(W * 2, zl).rotateX(Math.PI / 2)), M.dark, { p: [0, CY, zc], receive: false }));
+    const truss = [], cols = [];
+    for (let z = z1 + 8; z < z0; z += 16) {
+      truss.push(placed(boxGeo(W * 2, 0.5, 0.5), [0, CY - 7, z]), placed(boxGeo(W * 2, 0.5, 0.5), [0, CY - 0.6, z]));
+      for (let x = -W; x < W; x += 6.25) {
+        truss.push(beam(new THREE.Vector3(x, CY - 7, z), new THREE.Vector3(x + 6.25, CY - 0.6, z), 0.14, 0.14, 4));
+        truss.push(placed(boxGeo(0.25, 6.4, 0.25), [x, CY - 3.8, z]));
+      }
+      for (const sx of [-1, 1]) usIBeam(cols, sx * (W - 1.2), z, F, CY - 7, Math.PI / 2);
+    }
+    g.add(L.mesh(L.ownGeo(mergeGeos(truss)), M.girder));
+    g.add(L.mesh(L.ownGeo(mergeGeos(cols)), M.girder));
+    const sky = [];
+    for (let z = z1 + 16; z < z0 - 4; z += 16) for (const x of [-25, 0, 25]) sky.push({ p: [x, CY - 0.1, z] });
+    g.add(instanced(L, L.ownGeo(new THREE.BoxGeometry(14, 0.1, 6)), L.basic('usSky', { color: '#FFF8EA', toneMapped: false }), sky, { receive: false }));
+    // light shafts from the skylights
+    const shaftTex = gradTex(L, 'usShaft', [[0, 'rgba(255,244,222,0)'], [0.12, 'rgba(255,244,222,0.8)'], [1, 'rgba(255,244,222,0)']]);
+    const shaftMat = L.basic('usShaftM', { map: shaftTex, transparent: true, opacity: 0.09, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false, toneMapped: false });
+    const sd = new THREE.Vector3(...this.env.sun[2]).normalize(), qs = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), sd);
+    const shaftGeo = L.ownGeo(new THREE.PlaneGeometry(9, 90));
+    for (let z = z1 + 16; z < z0 - 4; z += 32) for (const x of [-25, 25]) for (let k = 0; k < 2; k++) {
+      const s = L.mesh(shaftGeo, shaftMat, { receive: false });
+      s.quaternion.copy(qs).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), k * Math.PI / 2 + 0.3));
+      s.position.set(x, CY, z).addScaledVector(sd, -45);
+      g.add(s);
+    }
+    // hanging lamps
+    const lamps = [];
+    for (let z = z1 + 16; z < z0; z += 32) for (const x of [-30, 30]) {
+      g.add(L.mesh(cylGeo(0.04, 0.04, 14, 4), M.dark, { p: [x, CY - 7, z] }));
+      g.add(L.mesh(cylGeo(0.5, 1.8, 1.4, 16, true), M.girder, { p: [x, CY - 14.6, z] }));
+      lamps.push([x, CY - 15.4, z]);
+    }
+    for (const [x, y, z] of lamps) { const s = L.glow('#FFD9A0', 7, 0.5); s.position.set(x, y, z); g.add(s); }
+    // silos and pipes along the left wall
+    const tank = L.pbr('usTank', { color: '#C9CDD1', metalness: 0.7, roughness: 0.3 });
+    for (let z = b.zMax + 10, i = 0; z > b.zMin - 30; z -= 38, i++) {
+      const x = -36, r = 6;
+      g.add(L.mesh(cylGeo(r, r, 26, 32), tank, { p: [x, F + 13, z], cast: false }));
+      g.add(L.mesh(sphGeo(r, 32, 12), tank, { p: [x, F + 26, z], s: [1, 0.35, 1] }));
+      for (const y of [6, 13, 20]) g.add(L.mesh(cylGeo(r * 1.01, r * 1.01, 0.4, 32), M.girder, { p: [x, F + y, z] }));
+      g.add(L.mesh(boxGeo(2.4, 1.2, 0.2), M.cont(USINE_COLS[i % 4]), { p: [x + 4.3, F + 16, z + r * 0.72], r: [0, 0.7, 0] }));
+      g.add(L.mesh(L.ownGeo(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([new THREE.Vector3(x, F + 27.5, z), new THREE.Vector3(x + 2, F + 34, z), new THREE.Vector3(-W + 0.5, F + 36, z + 6)]), 16, 0.6, 8)), M.chrome));
+    }
+    // a big gear pair on the back wall, turning slowly
+    const gear = (r, n, mat) => {
+      const parts = [placed(cylGeo(r * 0.82, r * 0.82, 1, 32), [0, 0, 0], [Math.PI / 2, 0, 0])];
+      for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2; parts.push(placed(boxGeo(r * 0.3, r * 0.3, 1), [Math.cos(a) * r * 0.92, Math.sin(a) * r * 0.92, 0], [0, 0, a])); }
+      const m = L.mesh(L.ownGeo(mergeGeos(parts)), mat); m.add(L.mesh(cylGeo(r * 0.2, r * 0.2, 1.4, 16), M.dark, { r: [Math.PI / 2, 0, 0] }));
+      return m;
+    };
+    const g1 = gear(9, 18, M.orange), g2 = gear(5, 10, M.girder);
+    g1.position.set(-12, F + 30, z1 + 0.8); g2.position.set(-12 + 13.6, F + 30 + 1.6, z1 + 0.9);
+    g.add(g1, g2);
+    L.anims.push(dt => { g1.rotation.z += dt * 0.2; g2.rotation.z -= dt * 0.2 * 18 / 10; });
+    // a floor conveyor carrying crates along the right side
+    const lineX = 30, lz0 = b.zMax + 30, lz1 = b.zMin - 30, ll = lz0 - lz1;
+    g.add(L.mesh(boxGeo(3.2, 1.2, ll), M.girder, { p: [lineX, F + 0.6, (lz0 + lz1) / 2] }));
+    g.add(L.mesh(boxGeo(2.8, 0.05, ll), M.belt, { p: [lineX, F + 1.22, (lz0 + lz1) / 2] }));
+    const nCr = Math.max(6, Math.floor(ll / 9)), crates = [];
+    for (let i = 0; i < nCr; i++) crates.push({ p: [lineX, F + 2.1, lz0 - i * ll / nCr], s: [1.7, 1.7, 1.7], c: ['#C9A26B', '#B88A55', '#D8B47A'][i % 3] });
+    const cm = instanced(L, boxGeo(1, 1, 1), L.pbr('usCrateI', { color: '#FFFFFF', roughness: 0.8 }), crates);
+    g.add(cm);
+    const mtx = new THREE.Matrix4(), q0 = new THREE.Quaternion(), sc = new THREE.Vector3(1.7, 1.7, 1.7), pv = new THREE.Vector3();
+    L.anims.push((dt, t) => {
+      for (let i = 0; i < nCr; i++) { const z = lz0 - (((i * ll / nCr) + t * 2.2) % ll); pv.set(lineX, F + 2.1, z); mtx.compose(pv, q0, sc); cm.setMatrixAt(i, mtx); }
+      cm.instanceMatrix.needsUpdate = true;
+    });
+    // steam rising from vents and welding sparks on the floor
+    const steam = [];
+    for (let i = 0; i < 6; i++) { const s = L.glow('#FFFFFF', 3.2, 0.2); const x = -36 + 4, z = b.zMax + 10 - (i % 3) * 38; s.userData.base = [x + (i > 2 ? 2 : 0), F + 27, z]; g.add(s); steam.push(s); }
+    L.anims.push((dt, t) => steam.forEach((s, i) => { const k = (t * 0.25 + i / 6) % 1, bs = s.userData.base; s.position.set(bs[0] + Math.sin(t + i) * 0.6, bs[1] + k * 9, bs[2]); s.material.opacity = 0.25 * (1 - k); s.scale.setScalar(3 + k * 4); }));
+    const weld = [new THREE.Vector3(-22, F + 1.2, b.zMax - 20), new THREE.Vector3(22, F + 1.2, (b.zMin + b.zMax) / 2), new THREE.Vector3(-22, F + 1.2, b.zMin + 10)];
+    for (const w of weld) {
+      g.add(L.mesh(boxGeo(3, 1.2, 2), M.cont('#2A6F86'), { p: [w.x, F + 0.6, w.z] }));
+      g.add(L.mesh(cylGeo(0.25, 0.3, 3, 10), M.orange, { p: [w.x - 1.8, F + 1.5, w.z], r: [0, 0, 0.5] }));
+    }
+    let nextSpark = 0;
+    L.anims.push((dt, t) => {
+      if (t < nextSpark || typeof FX === 'undefined' || typeof Game === 'undefined' || Game.screen !== 'play') return;
+      nextSpark = t + 0.7 + R() * 1.4;
+      FX.burst(weld[Math.floor(R() * weld.length)], '#FFC15E', 10, 6, 0.1, 1, 0.45);
+    });
+    // dust in the light
+    const dust = pointsCloud(L, 450, [80, 50, 80], 0.18, '#FFF0D8', { opacity: 0.5, additive: true, seed: 5 });
+    g.add(dust);
+    L.anims.push((dt, t) => { dust.position.set(camera.position.x, camera.position.y, camera.position.z); dust.rotation.y = t * 0.01; dust.position.y += Math.sin(t * 0.2) * 1.2; });
+  }
+});
+
+// ---------- hydraulic press over a platform: rests up, winds up with a blinking lamp, slams, rises ----------
+// o: x, top, z, w, d, per (s), ph (fraction of the cycle), lift (gap when up), axis: the path direction
+// ('z' by default: the posts stand left and right of the path)
+const PRESS = { warn: 0.46, slam: 0.66, down: 0.7, rise: 0.86, gap: 0.06, head: 0.8 };
+Level.prototype.addPress = function (o) {
+  const L = this, w = o.w || 4, d = o.d || 3, per = o.per || 3.4, lift = o.lift || 3.6, HT = PRESS.head;
+  const M = L.theme.mats(L);
+  const steel = L.pbr('prSteel', { color: '#3A4757', metalness: 0.55, roughness: 0.45 }), chrome = L.pbr('prChrome', { color: '#C9D0D6', metalness: 0.95, roughness: 0.18 }), yel = L.pbr('prYel', { color: '#E8B21E', roughness: 0.5 });
+  const root = new THREE.Group(); root.position.set(o.x, o.top, o.z); L.root.add(root);
+  const acrossX = o.axis !== 'x', sp = (acrossX ? w : d) / 2 + 0.5, beamY = lift + 0.35 + HT + 2.2, low = Math.max(-40, L.floorY - o.top);
+  for (const s of [-1, 1]) root.add(L.mesh(boxGeo(0.55, beamY - low, 0.55), steel, { p: [acrossX ? s * sp : 0, (beamY + low) / 2, acrossX ? 0 : s * sp], cast: true }));
+  root.add(L.mesh(boxGeo(acrossX ? 2 * sp + 0.6 : 1.1, 0.7, acrossX ? 1.1 : 2 * sp + 0.6), yel, { p: [0, beamY + 0.35, 0], cast: true }));
+  root.add(L.mesh(cylGeo(0.5, 0.5, 1.4, 18), steel, { p: [0, beamY - 0.7, 0], cast: true }));
+  const lampMat = new THREE.MeshBasicMaterial({ color: col('#5A2A20'), toneMapped: false }); L.own.push(lampMat);
+  const lamp = L.mesh(sphGeo(0.26, 14, 10), lampMat, { p: [0, beamY + 0.85, 0] }); root.add(lamp);
+  const lampGlow = L.glow('#FF5A3A', 2.2, 0); lampGlow.position.copy(lamp.position); root.add(lampGlow);
+  const head = new THREE.Group(); root.add(head);
+  head.add(L.mesh(boxGeo(w, HT, d), steel, { cast: true }));
+  head.add(L.mesh(boxGeo(w + 0.04, 0.22, d + 0.04), M.haz || yel, { p: [0, -HT / 2 + 0.11, 0] }));
+  head.add(L.mesh(boxGeo(w * 0.5, 0.25, d * 0.5), steel, { p: [0, HT / 2 + 0.12, 0] }));
+  const rod = L.mesh(cylGeo(0.24, 0.24, 1, 14), chrome, { cast: true }); root.add(rod);
+  // the footprint, always marked on the floor
+  const mark = trapBorder(L, { w: w + 0.44, d: d + 0.44 }, 0, '#E8B21E', '#1E2228'); mark.position.y = 0.012; root.add(mark);
+  const solid = L.solidBox(o.x - w / 2, o.top, o.z - d / 2, o.x + w / 2, o.top + HT + PRESS.gap, o.z + d / 2, false);
+  const ob = {
+    type: 'press', o, gapY: lift, cyc: -1, impactAt: -99, hitCyc: -1, fireAt: -99, ghostable: true,
+    update(t) {
+      let u, cyc;
+      if (L.defense && o.mech !== false) {
+        // Défense: up until the defender pulls the lever, then one stroke from the wind-up
+        const e = t - this.fireAt;
+        if (e >= 0 && e < per * (1 - PRESS.warn)) { u = PRESS.warn + e / per; cyc = this.fireAt; } else { u = 0; cyc = this.cyc; }
+      } else { const c = t / per + (o.ph || 0); u = ((c % 1) + 1) % 1; cyc = Math.floor(c); }
+      let gap, jit = 0, warn = 0;
+      if (u < PRESS.warn) gap = lift;
+      else if (u < PRESS.slam) { const k = (u - PRESS.warn) / (PRESS.slam - PRESS.warn); gap = lift + 0.35 * Math.sin(k * Math.PI / 2); jit = k; warn = 1; }
+      else if (u < PRESS.down) { const k = (u - PRESS.slam) / (PRESS.down - PRESS.slam); gap = PRESS.gap + (lift + 0.35 - PRESS.gap) * (1 - k * k); warn = 1; }
+      else if (u < PRESS.rise) gap = PRESS.gap;
+      else { const k = (u - PRESS.rise) / (1 - PRESS.rise); gap = PRESS.gap + (lift - PRESS.gap) * k * k * (3 - 2 * k); }
+      if (u >= PRESS.down && u < PRESS.rise && this.cyc !== cyc) {
+        this.cyc = cyc; this.impactAt = t;
+        if (typeof FX !== 'undefined' && Game.screen === 'play') {
+          const dd = Math.hypot(P.pos.x - o.x, P.pos.z - o.z);
+          if (dd < 40) FX.burst(new THREE.Vector3(o.x, o.top + 0.2, o.z), '#D8D2C6', 14, 6, 0.12, 2, 0.5);
+          if (dd < 16) { SFX.slam(); if (dd < 7) Cam.shake = Math.max(Cam.shake || 0, 0.25); }
+        }
+      }
+      this.gapY = gap;
+      const hy = gap + HT / 2;
+      head.position.set(Math.sin(t * 53) * 0.05 * jit, hy + Math.sin(t * 41) * 0.03 * jit, Math.cos(t * 47) * 0.05 * jit);
+      const rt = beamY - 1.4, rb = hy + HT / 2 + 0.25;
+      rod.scale.y = Math.max(0.01, rt - rb); rod.position.y = (rt + rb) / 2;
+      const on = warn && Math.sin(t * 28) > 0;
+      lampMat.color.set(on ? '#FF5A3A' : '#5A2A20'); lampGlow.material.opacity = on ? 0.7 : 0;
+      solid.active = u >= PRESS.down && u < PRESS.rise;
+    },
+    collide(Pl) {
+      const hx = w / 2 + PH.r, hz = d / 2 + PH.r, dx = Pl.pos.x - o.x, dz = Pl.pos.z - o.z;
+      if (Math.abs(dx) > hx || Math.abs(dz) > hz) return null;
+      // squashed: the head lands on you, you're spat out by the nearest side
+      if (Game.lt - this.impactAt < 0.1 && this.hitCyc !== this.cyc && Pl.pos.y > o.top - 0.6 && Pl.pos.y < o.top + HT + 0.6) {
+        this.hitCyc = this.cyc;
+        const ex = hx - Math.abs(dx), ez = hz - Math.abs(dz);
+        let nx = 0, nz = 0;
+        if (ex < ez) { nx = Math.sign(dx) || 1; Pl.pos.x = o.x + nx * (hx + 0.03); } else { nz = Math.sign(dz) || 1; Pl.pos.z = o.z + nz * (hz + 0.03); }
+        Pl.pos.y = Math.max(Pl.pos.y, o.top + 0.02);
+        knock(nx * 11, nz * 11, 6, 0.8);
+        Pl.stunT = Math.max(Pl.stunT, 0.7);
+        if (P.blob) { P.blob.impulse(-16); P.blob.jiggle(18); }
+        markHit('f:press');
+        return { hit: 'sweep' };
+      }
+      // the raised head is a ceiling
+      const by = o.top + this.gapY, ph = Pl.h || PH.H;
+      if (Pl.vel.y > 0 && Pl.pos.y + ph > by && Pl.pos.y < by) { Pl.pos.y = by - ph; Pl.vel.y = 0; }
+      return null;
+    }
+  };
+  L.obstacles.push(ob);
+  if (o.mech !== false) L.addMech({ kind: 'press', label: 'Presse', pos: new THREE.Vector3(o.x, o.top + 4.6, o.z), cd: 3, trigger() { if (Game.lt - ob.fireAt > per * (1 - PRESS.warn)) ob.fireAt = Game.lt; } });
+  return ob;
+};
+
 // ===================== Boss mode: everyone against the director, with bombs and throws =====================
 // The director stands on a pedestal in the middle of his blotter. Bombs drop on the tiles (the host calls
 // them out, `bk` kind 'b'); grab one (left click / F), throw it with a push (right click / R), or get
@@ -4410,7 +4874,7 @@ function LB(theme, name, sub) {
     mission(list) { d.mission = list; d.coopOnly = true; return api; },
     gem(x, y, z) { d.gems.push([x, y, r2(z + (d._dz || 0))]); return api; },
     check(x, top, z) { d.checks.push(oz({ x, top, z })); return api; },
-    finish(x, top, z, w, dd) { const p = oz({ x, top, z, w, d: dd }); d.plats.push(p); d.finish = p; return api; },
+    finish(x, top, z, w, dd) { const p = oz({ x, top, z, w, d: dd }); d.plats.push(p); d.finish = d._last = p; return api; },
     sign(x, y, z, text) { d.deco.push(d._last = oz({ type: 'sign', x, y, z, text })); return api; },
     // the last item added gets a harder version in Chaos (`hard`) and in Insane (`crazy`, on top of `hard`)
     harder(hard, crazy) { if (d._last) { if (hard) d._last.hard = hard; if (crazy) d._last.crazy = crazy; } return api; },
@@ -4492,10 +4956,13 @@ function chaosDef(def, diff) {
     if (q.blink) q.blink = Object.assign({}, q.blink, { on: r2(q.blink.on * K.on[diff]), off: r2(q.blink.off * K.off[diff]) });
     if (q.type === 'sweep') q.w = r2(q.w * K.spd[diff]);
     if (q.type === 'fan') q.speed = r2(q.speed * K.spd[diff]);
+    if (q.type === 'press' && q.per) q.per = r2(q.per * K.per[diff]);
     if (q.type === 'turret' && q.vis !== 'boss') q.rate = r2(q.rate * K.rate[diff]);
     return q;
   };
-  return Object.assign({}, out, { plats: out.plats.map(tune), obstacles: out.obstacles.map(tune), deco: out.deco.map(o => (o.hard || o.crazy ? tune(o) : o)) });
+  // the start and the finish follow their tuned copies (the Insane finish of l'usine moves away)
+  const plats = out.plats.map(tune), fi = out.plats.indexOf(def.finish), si = out.plats.indexOf(def.start);
+  return Object.assign({}, out, { plats, start: si >= 0 ? plats[si] : def.start, finish: fi >= 0 ? plats[fi] : def.finish, obstacles: out.obstacles.map(tune), deco: out.deco.map(o => (o.hard || o.crazy ? tune(o) : o)) });
 }
 // glue on some strips of a ring (it drops with the strip): ring k, sides 0 north 1 south 2 west 3 east
 function ringGoo(b, k, sides) {
@@ -4935,7 +5402,60 @@ function ring4() {
   return b.def;
 }
 
-const LEVELS = [level1, level2, level3, level4, level5, level6, ring1, ring2, ring3, ring4, fight1];
+// L'usine: conveyor belts (they carry you), a crane, a pendulum hammer, hydraulic presses, a low pipe
+// and a laser to jump over or dive under. Listed before the director (`order`), stored last so the
+// leaderboard keys of the other levels keep their index.
+function usine1() {
+  const b = LB('usine', 'L\'usine', 'Tapis roulants, presses hydrauliques et marteau-pilon');
+  b.def.order = 3.5; b.def.music = 'usine';
+  b.start(0, 0, 0, 10, 8)
+    // a belt running against you
+    .p(0, 0, -12, 4, 12, { belt: [0, 2.2] }).harder({ belt: [0, 3] }, { belt: [0, 3.6] }).gem(0, 0.9, -9.5).gem(0, 0.9, -14.5)
+    .sign(-2.9, 3.2, -8, 'Tapis roulant : il te ramène en arrière')
+    // a belt across the way: it carries you towards the edge
+    .p(0, 0.8, -23.5, 10, 3.5, { belt: [2.6, 0] }).harder({ belt: [3.4, 0] }, { belt: [4.2, 0] }).gem(-3, 1.7, -23.5)
+    .p(-3, 1.6, -30.5, 4, 4).gem(-3, 2.5, -30.5)
+    .p(7, 2.4, -30.5, 2.6, 2.6, { route: false }).gem(7, 3.3, -30.5).gem(7, 4.3, -30.5)
+    // two presses taking turns
+    .p(0, 1.6, -42, 5, 14).gem(0, 2.5, -42)
+    .ob('press', { x: 0, top: 1.6, z: -39, w: 5, d: 3, per: 3.4, ph: 0 })
+    .ob('press', { x: 0, top: 1.6, z: -45, w: 5, d: 3, per: 3.4, ph: 0.5 })
+    .sign(-3.4, 5.6, -36.4, 'Presse : passe quand elle remonte')
+    .p(0, 1.6, -55, 7, 6).check(2.4, 1.6, -54).gem(-2.2, 2.5, -56)
+    // a plate hanging from a crane
+    .m(0, 2.4, -64, 4, 4, { ax: 'x', amp: 3.5, per: 5 }).harder(null, { move: { ax: 'x', amp: 4.5, per: 4.4 } }).gem(0, 3.3, -64)
+    // the pendulum hammer swings along the deck: go when it is far
+    .p(0, 3.2, -73.5, 6, 7).gem(2, 4.1, -75.5)
+    .ob('hammer', { x: 0, top: 3.2, z: -73.5, axis: 'z', len: 4.6, amp: 0.9, per: 3.4, span: 8.6 })
+    .sign(3.6, 7, -69.6, 'Marteau-pilon : passe derrière lui')
+    // a low pipe across the deck
+    .p(0, 3.2, -84, 5, 6).gem(0, 4.1, -86)
+    .gate(0, 3.2, -84, 5, 'x')
+    .sign(-2.4, 6.4, -82, 'Tuyau bas : plonge (Maj) pour passer dessous')
+    // a last belt against you, then the laser
+    .p(0, 4.2, -95, 4, 10, { belt: [0, 2.4] }).harder({ belt: [0, 3.2] }, { belt: [0, 3.8] }).gem(0, 5.1, -93).gem(0, 5.1, -97.5)
+    .p(0, 4.2, -107, 6, 10).gem(2.2, 5.1, -104)
+    .ob('laser', { x: 0, top: 4.2, z: -107, axis: 'z', half: 4.2, len: 6.6, per: 7 })
+    .sign(-3.4, 7.4, -102.6, 'Laser bas : saute · laser haut : plonge')
+    // Insane: the dock moves away, only jump + double jump + dive gets there
+    .finish(0, 4.2, -119, 12, 9).harder(null, { z: -126.5 })
+    .bumper(-3.4, 4.2, -116.4, 0.75).harder(null, { z: -123.9 }).bumper(3.4, 4.2, -116.4, 0.75).harder(null, { z: -123.9 })
+    // Chaos: a third press closes the gap between the two, a low pipe on the last belt, a bonus for divers
+    .hard()
+    .ob('press', { x: 0, top: 1.6, z: -42, w: 5, d: 3, per: 3.4, ph: 0.25 })
+    .gate(0, 4.2, -96.5, 4, 'x')
+    .p(13.75, 3.2, -84, 2.6, 2.6, { route: false, diveOnly: true }).gem(13.75, 4.1, -84).gem(13.75, 5.1, -84)
+    .foe('robot', 0, 1.6, -55, [-3, 3, -57.5, -52.5])
+    // Insane: a blower across the hammer deck, a second laser, the final leap
+    .insane()
+    .p(-6.2, 2.4, -73.5, 2, 2, { route: false })
+    .fan(-6.2, 4.4, -73.5, [1, 0, 0], 12, 1.7, 4.2, { on: 2, off: 2.6 })
+    .ob('laser', { x: 0, top: 4.2, z: -107, axis: 'z', half: 4.2, len: 6.6, per: 7, ph: 3.5 })
+    .sign(0, 8, -113, 'Saut, double saut, puis plongeon');
+  return b.def;
+}
+
+const LEVELS = [level1, level2, level3, level4, level5, level6, ring1, ring2, ring3, ring4, fight1, usine1];
 const LEVEL_DEFS = LEVELS.map(f => f());
 // one tune per level (see music.js); the random course picks its own from the decor it draws
 ['bureau', 'halloween', 'noel', 'parc', 'boss', null, 'ring:0', 'ring:1', 'ring:2', 'ring:3'].forEach((m, i) => { if (m) LEVEL_DEFS[i].music = m; });
@@ -5542,6 +6062,8 @@ function stepPlayer(L, h, camYaw, inputOn) {
     return;
   }
   if (P.grounded && P.ground && P.ground.move) { P.pos.x += P.ground.dx; P.pos.y += P.ground.dy; P.pos.z += P.ground.dz; }
+  // conveyor belt (l'usine): carried along while standing on it
+  if (P.grounded && P.ground && P.ground.def && P.ground.def.belt && P.ground.active) { const bt = P.ground.def.belt; moveH(L, 0, bt[0] * h, false); moveH(L, 2, bt[1] * h, false); }
   if (P.grounded && P.ground && !P.ground.active) { P.grounded = false; P.ground = null; }
   pushOutOfMovers(L);
   if (P.knockT > 0) P.knockT -= h;
@@ -7968,7 +8490,7 @@ function eventsTick(dt) {
 // Obstacles move on the level clock (Game.lt) so every screen sees them in the same place without
 // sending anything. The host draws the random events and calls them out like the Insane events
 // (presence `bk`, kind 'x'); each client then plays the event on its own blob.
-const RX_TINT = { bureau: ['#16345E', '#DC7046'], halloween: ['#2B2238', '#E06A1B'], noel: ['#2F5A7A', '#C8323E'], parc: ['#5A3B22', '#2F7A4A'], direction: ['#16345E', '#DC7046'] };
+const RX_TINT = { bureau: ['#16345E', '#DC7046'], halloween: ['#2B2238', '#E06A1B'], noel: ['#2F5A7A', '#C8323E'], parc: ['#5A3B22', '#2F7A4A'], usine: ['#3A4757', '#E8B21E'], direction: ['#16345E', '#DC7046'] };
 // the first seconds of a round, nothing hits (everyone finds their feet)
 const RX_GRACE = 5;
 function rxTint(L) { return RX_TINT[L.def.theme] || RX_TINT.bureau; }
@@ -8382,7 +8904,9 @@ function modeLevels(md) {
   LEVEL_DEFS.forEach((d, i) => {
     if (md === 'boss' ? d.fight : d.fight ? false : md === 'ring' ? d.ring : md === 'coop' ? !d.ring : !d.ring && !d.coopOnly) out.push(i);
   });
-  return out;
+  // a level can be listed out of storage order (`order`), the storage index stays its id
+  const ord = i => (LEVEL_DEFS[i].order != null ? LEVEL_DEFS[i].order : i);
+  return out.sort((a, b) => ord(a) - ord(b));
 }
 function defIndex(md, lv) { const l = modeLevels(md); return l[clamp(lv | 0, 0, l.length - 1)]; }
 function defOf(md, lv) { return LEVEL_DEFS[defIndex(md, lv)]; }
@@ -10087,6 +10611,7 @@ const LEVEL_ICONS = (() => {
     halloween: w('<ellipse cx="12" cy="14" rx="8" ry="6.5"/><path d="M12 7.5c-2 0-3 2.8-3 6.5s1 6.5 3 6.5 3-2.8 3-6.5-1-6.5-3-6.5z"/><path d="M12 7.5V4.5c1 0 2 .5 2.5 1.5"/>'),
     noel: w('<path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9"/><path d="M9.5 4.5 12 7l2.5-2.5M9.5 19.5 12 17l2.5 2.5"/>'),
     parc: w('<circle cx="12" cy="10" r="6"/><path d="M12 16v5M9 21h6"/>'),
+    usine: w('<circle cx="12" cy="12" r="2.6"/><path d="M10.6 3.5h2.8l.5 2.3 1.7.8 2-1.3 2 2-1.3 2 .8 1.7 2.3.5v2.8l-2.3.5-.8 1.7 1.3 2-2 2-2-1.3-1.7.8-.5 2.3h-2.8l-.5-2.3-1.7-.8-2 1.3-2-2 1.3-2-.8-1.7-2.3-.5v-2.8l2.3-.5.8-1.7-1.3-2 2-2 2 1.3 1.7-.8z"/>'),
     direction: w('<path d="M7.5 17V6.5h9V17"/><path d="M3.5 17h17"/><path d="M7.5 13.5h9"/>'),
     fight: w('<circle cx="12" cy="13" r="6.5"/><path d="M15.5 7.5 18 5M17 3.5l1.5 1.5"/><path d="M9.5 13.5a2.5 2.5 0 0 1 2.5-2.5"/>'),
     gen: w('<rect x="4" y="4" width="16" height="16" rx="4"/><circle cx="9" cy="9" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="15" cy="15" r="1.3" fill="currentColor" stroke="none"/>')
