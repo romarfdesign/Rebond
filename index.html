@@ -1,4 +1,4 @@
-<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="icon" href="data:,"><style>body{margin:0}</style></head><body><script src="/room-shim.js"></script><title>Rebond</title>
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="Rebond"><meta name="theme-color" content="#0F2C46"><link rel="icon" href="data:,"><style>body{margin:0}</style></head><body><script src="/room-shim.js"></script><title>Rebond</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400;0,500;0,600;0,700;0,900;1,500&display=swap">
@@ -23,7 +23,7 @@ html,body{height:100%}
 body{background:var(--ink);color:var(--white);font:500 15px/1.5 var(--f-text);overflow:hidden;-webkit-font-smoothing:antialiased}
 #gl{position:fixed;inset:0;width:100%;height:100%;display:block;outline:none;touch-action:none}
 button,input{font:inherit;color:inherit}
-button{cursor:pointer}
+button{cursor:pointer;touch-action:manipulation}
 :focus-visible{outline:2px solid var(--peach);outline-offset:3px}
 
 .screen{position:fixed;inset:0;overflow-y:auto;display:grid;place-items:center;padding-block:24px;padding-inline:16px;
@@ -98,7 +98,11 @@ kbd{font:600 12px/1 var(--f-text);padding:6px 9px;border-radius:8px;background:r
 .join-form input{text-transform:uppercase;letter-spacing:.2em;font-weight:700}
 .solo-note{font-size:13px;color:var(--muted);margin:14px 0 0}
 .touch-note{display:none;font-size:13px;color:var(--peach);margin:0 0 18px}
-@media (hover:none) and (pointer:coarse){.touch-note{display:block}}
+body.touch .touch-note{display:block}
+.keys-touch{display:none}
+body.touch .keys{display:none}
+body.touch .keys.keys-touch{display:grid}
+body.touch .hud-help{display:none}
 
 /* ---------- lobby ---------- */
 .results-panel{width:min(880px,100%)}
@@ -323,6 +327,68 @@ kbd{font:600 12px/1 var(--f-text);padding:6px 9px;border-radius:8px;background:r
 #bossbar-fill{height:100%;width:100%;border-radius:999px;background:linear-gradient(90deg,#DC7046,#FF6633);transition:width .25s ease}
 .bossbar-hp{display:block;margin-top:5px;font:600 11px/1 var(--f-text);opacity:.7;text-align:right;font-variant-numeric:tabular-nums}
 
+/* ---------- touch controls (touch.js) ---------- */
+#tc{position:fixed;inset:0;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
+#tc-zone{position:absolute;inset:0;touch-action:none}
+#tc-stick{position:absolute;width:128px;height:128px;margin:-64px 0 0 -64px;border-radius:50%;pointer-events:none;
+  background:radial-gradient(circle,rgba(15,44,70,.18),rgba(15,44,70,.42));border:2px solid rgba(255,255,255,.28)}
+#tc-stick.idle{left:calc(96px + env(safe-area-inset-left,0px));top:calc(100% - 96px - env(safe-area-inset-bottom,0px));opacity:.38}
+#tc-stick.live{opacity:1}
+#tc-knob{position:absolute;left:50%;top:50%;width:56px;height:56px;border-radius:50%;transform:translate(-50%,-50%);
+  background:rgba(255,255,255,.88);box-shadow:0 4px 14px rgba(15,44,70,.45)}
+.tc-b{position:absolute;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:0;border-radius:50%;
+  border:2px solid rgba(255,255,255,.3);background:rgba(15,44,70,.55);color:#fff;touch-action:none;
+  -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);transition:transform .06s,background-color .06s}
+.tc-b svg{width:42%;height:42%;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.tc-b span{font:700 9px/1 var(--f-text);letter-spacing:.06em;text-transform:uppercase;opacity:.9}
+.tc-b.on{transform:scale(.9);background:rgba(255,255,255,.3)}
+.tc-l{width:86px;height:86px;right:calc(22px + env(safe-area-inset-right,0px));bottom:calc(22px + env(safe-area-inset-bottom,0px));background:rgba(255,102,51,.82);border-color:rgba(255,255,255,.45)}
+.tc-l.on{background:var(--vivid-press)}
+.tc-l span{font-size:10px}
+.tc-m{width:64px;height:64px;right:calc(124px + env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px))}
+#tc-grab{width:64px;height:64px;right:calc(30px + env(safe-area-inset-right,0px));bottom:calc(122px + env(safe-area-inset-bottom,0px))}
+#tc-push{width:60px;height:60px;right:calc(112px + env(safe-area-inset-right,0px));bottom:calc(98px + env(safe-area-inset-bottom,0px))}
+.tc-xs{width:44px;height:44px;right:calc(16px + env(safe-area-inset-right,0px));top:calc(74px + env(safe-area-inset-top,0px))}
+.tc-xs svg{width:56%;height:56%}
+#tc.def .tc-m,#tc.def .tc-s,#tc.def .tc-xs{display:none}
+.tc-rotate{position:absolute;left:50%;top:calc(120px + env(safe-area-inset-top,0px));transform:translateX(-50%);padding:9px 16px;border-radius:999px;
+  background:rgba(15,44,70,.82);border:1px solid rgba(255,255,255,.2);font:600 12px/1.3 var(--f-text);text-align:center;width:max-content;max-width:calc(100% - 32px);pointer-events:none}
+/* landscape phones: everything has to fit in ~390 px of height */
+@media (max-height:520px) and (orientation:landscape){
+  .screen{padding-block:12px}
+  .menu-grid{grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);gap:22px}
+  .h1{font-size:46px;margin-top:10px}
+  .lede{font-size:14px;margin-top:10px}
+  .keys{margin-top:16px;gap:8px 16px}
+  .keys dd{font-size:12px}
+  .panel{padding:18px}
+  .menu-avatar{margin-bottom:12px}
+  .avatar-small{width:84px;height:92px}
+  .actions{margin-top:16px}
+  #hud .hud-tl{top:calc(10px + env(safe-area-inset-top,0px));left:calc(12px + env(safe-area-inset-left,0px))}
+  #hud .hud-tr{top:calc(10px + env(safe-area-inset-top,0px));right:calc(12px + env(safe-area-inset-right,0px))}
+  .hud-title{font-size:16px;padding:7px 12px}
+  .tc-xs{top:calc(58px + env(safe-area-inset-top,0px))}
+  .btn{min-height:42px;padding:11px 20px}
+  .h2{font-size:24px;margin-top:8px}
+  body.touch .touch-note{display:none}
+  .lobby-panel{padding:14px;gap:14px}
+  .lobby-side{grid-template-columns:120px minmax(0,1fr);padding:12px;gap:8px 14px}
+  .lobby-side .avatar-stage{height:128px}
+  .avatar-name{font-size:16px}
+  .mode-cards{grid-template-columns:repeat(5,minmax(0,1fr))}
+  .mode{padding:10px}
+  .mode-line{display:none}
+  .slots{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .slot{min-height:76px;padding:10px}
+}
+/* narrow portrait phones: the level name moves under the counters */
+@media (max-width:560px){
+  #hud #hud-eyebrow{display:none}
+  #hud .hud-tl{top:calc(66px + env(safe-area-inset-top,0px))}
+  .hud-title{font-size:16px;padding:7px 12px}
+}
+
 </style>
 <canvas id="gl" tabindex="-1" aria-label="Scène du jeu"></canvas>
 
@@ -344,10 +410,18 @@ kbd{font:600 12px/1 var(--f-text);padding:6px 9px;border-radius:8px;background:r
         <div><dt><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd></dt><dd>Émotes</dd></div>
         <div><dt><kbd>Échap</kbd><kbd>M</kbd><kbd>N</kbd></dt><dd>Pause, couper le son, couper la musique</dd></div>
       </dl>
+      <dl class="keys keys-touch">
+        <div><dt><kbd>Joystick</kbd></dt><dd>Pouce gauche : se déplacer</dd></div>
+        <div><dt><kbd>Glisser</kbd></dt><dd>À droite de l'écran : tourner la caméra</dd></div>
+        <div><dt><kbd>Saut</kbd></dt><dd>Sauter, puis double saut en l'air</dd></div>
+        <div><dt><kbd>Plonger</kbd></dt><dd>Passe sous les barres basses, allonge un double saut</dd></div>
+        <div><dt><kbd>Attraper</kbd></dt><dd>Attraper, tirer. En tombant : s'accrocher</dd></div>
+        <div><dt><kbd>Pousser</kbd></dt><dd>Pousser, lancer. Maintenir pour une grosse baffe</dd></div>
+      </dl>
     </header>
 
     <div class="panel menu-panel">
-      <p class="touch-note">Rebond se joue sur ordinateur, au clavier ou à la manette.</p>
+      <p class="touch-note">Sur téléphone, tourne-le à l'horizontale : joystick à gauche, boutons à droite.</p>
       <div class="menu-avatar">
         <div class="avatar-stage avatar-small" id="avatar-menu"></div>
         <div class="menu-avatar-txt"><span class="label">Ton personnage</span><p class="sub">Choisis ta couleur ici, ton chapeau dans le salon.</p></div>
@@ -721,6 +795,8 @@ const Input = {
   keys: new Set(), jumpEdge: false, diveEdge: false, emoteReq: -1, mdx: 0, mdy: 0, wheel: 0, dragging: false, locked: false,
   canvas: null, gp: null, gpJumpPrev: false, gpStartPrev: false, gpDivePrev: false, gpEmPrev: false, onKey: null,
   grab: makeBtn(), push: makeBtn(), clicks: 0, lclicks: 0, mx: 0, my: 0, mouseIn: false,
+  // touch.js: the joystick (x, z in -1..1), the jump button held, a camera drag in progress
+  touch: { x: 0, z: 0, jump: false }, tdrag: false,
   init(canvas, onKey) {
     this.canvas = canvas; this.onKey = onKey;
     const typing = e => { const t = e.target; return t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable); };
@@ -798,6 +874,7 @@ const Input = {
       const ax = this.gp.axes[0] || 0, az = this.gp.axes[1] || 0;
       if (Math.hypot(ax, az) > 0.2) { x += ax; z -= az; }
     }
+    if (this.touch.x || this.touch.z) { x += this.touch.x; z += this.touch.z; }
     const l = Math.hypot(x, z);
     if (l > 1) { x /= l; z /= l; }
     return { x, z };
@@ -810,7 +887,7 @@ const Input = {
     return t;
   },
   camPitch() { if (this.gp) { const a = this.gp.axes[3] || 0; if (Math.abs(a) > 0.2) return a; } return 0; },
-  jumpHeld() { return this.keys.has('Space') || !!(this.gp && this.gp.buttons[0] && this.gp.buttons[0].pressed); }
+  jumpHeld() { return this.keys.has('Space') || this.touch.jump || !!(this.gp && this.gp.buttons[0] && this.gp.buttons[0].pressed); }
 };
 
 // ===================== music: a small WebAudio sequencer, one original tune per level =====================
@@ -1876,7 +1953,7 @@ class Level {
   }
   addDeco(d) {
     if (d.type === 'sign') {
-      const l = this.label(d.text, { font: '600 34px Montserrat, sans-serif', bg: 'rgba(255,255,255,0.94)', fg: TOK.ink, scale: 0.0068, h: 70 });
+      const l = this.label(typeof signText === 'function' ? signText(d.text) : d.text, { font: '600 34px Montserrat, sans-serif', bg: 'rgba(255,255,255,0.94)', fg: TOK.ink, scale: 0.0068, h: 70 });
       l.sprite.position.set(d.x, d.y, d.z);
       this.root.add(l.sprite);
     } else if (d.type === 'column' && this.theme.column) {
@@ -4687,7 +4764,7 @@ function fightPickup() {
   F.carry = best.id; best.st = 'carried'; best.by = Game.myPeer; best.t = Game.lt;
   Net.set({ cb: best.id });
   SFX.grabbed(); P.blob.reach();
-  toast('Bombe ! Clic droit pour la lancer', 1500);
+  toast(kb('Bombe ! Clic droit pour la lancer', 'Bombe ! Pousser pour la lancer'), 1500);
   return true;
 }
 function fightThrow() {
@@ -7169,7 +7246,7 @@ function heldTick() {
       if (fresh) {
         P.escape = 0;
         P.blob.scare(1.2); shout(15); SFX.squish();
-        toast((cleanName(hs[0][0].presence.n) || 'Quelqu\'un') + (hs.length > 1 ? ' et ' + (cleanName(hs[1][0].presence.n) || 'un autre') + ' te tiennent' : ' t\'a attrapé') + ' · Espace pour te libérer', 1800);
+        toast((cleanName(hs[0][0].presence.n) || 'Quelqu\'un') + (hs.length > 1 ? ' et ' + (cleanName(hs[1][0].presence.n) || 'un autre') + ' te tiennent' : ' t\'a attrapé') + ' · ' + kb('Espace', 'Saut') + ' pour te libérer', 1800);
       }
       markHit(hs[0][0].peer);
     }
@@ -8991,7 +9068,7 @@ function defenderTick(dt, now) {
   }
   const turn = Input.camTurn();
   if (turn) Dcam.yaw += turn * 1.8 * dt;
-  if (Input.dragging && (Input.mdx || Input.mdy) && Input.push.down) { Dcam.yaw -= Input.mdx * 0.004; Dcam.pitch = clamp(Dcam.pitch + Input.mdy * 0.003, 0.35, 1.35); }
+  if (Input.dragging && (Input.mdx || Input.mdy) && (Input.push.down || Input.tdrag)) { Dcam.yaw -= Input.mdx * 0.004; Dcam.pitch = clamp(Dcam.pitch + Input.mdy * 0.003, 0.35, 1.35); }
   Input.mdx = 0; Input.mdy = 0;
   if (Input.wheel) { Dcam.dist = clamp(Dcam.dist + Input.wheel * 2, 10, 46); Input.wheel = 0; }
   if (Input.jumpEdge) { Input.jumpEdge = false; Dcam.follow = !Dcam.follow; toast(Dcam.follow ? 'Vue : suit le premier coureur' : 'Vue libre', 1200); }
@@ -9076,6 +9153,202 @@ function defenseEvents() {
   Game.dvSeen.set(d.peer, seen === undefined ? maxN : Math.max(seen, maxN));
 }
 
+// ===================== touch controls: phones and tablets =====================
+// A floating joystick under the left thumb, a camera drag anywhere on the right, and four action
+// buttons under the right thumb. They feed the same Input fields as the keyboard, the mouse and the
+// gamepad (stick → Input.touch, drag → mdx/mdy, buttons → jumpEdge / diveEdge / grab / push), so
+// the game itself does not know where its input comes from. Défense: the stick moves the view,
+// a drag turns it, a pinch zooms, a tap on a mechanism fires it.
+const COARSE = (() => { try { return matchMedia('(hover: none) and (pointer: coarse)').matches; } catch (e) { return false; } })();
+// the label of a control: keyboard / touch
+function kb(desk, tch) { return typeof Touch !== 'undefined' && Touch.on ? tch : desk; }
+// level signs that name a key
+function signText(s) { return kb(s, s.replace(' (Maj)', '').replace('Espace une 2e fois', 'Saut une 2e fois')); }
+
+const TC = { R: 58, dead: 0.12, look: 1.7, tapMs: 280, tapPx: 14, pinchPx: 26, leftK: 0.45 };
+const TC_ICONS = {
+  jump: '<path d="M12 19V6M6.5 11.5 12 6l5.5 5.5"/>',
+  dive: '<path d="M5 6.5c5.5 0 9.5 3.5 11 10.5"/><path d="M11.5 15.8 16 17l1.6-4.4"/>',
+  grab: '<path d="M8 12.5V6.8a1.4 1.4 0 0 1 2.8 0V11M10.8 10.8V5.4a1.4 1.4 0 0 1 2.8 0v5.4M13.6 10.8V6.6a1.4 1.4 0 0 1 2.8 0v6.6a5.8 5.8 0 0 1-5.8 5.8h-.8a5 5 0 0 1-4.1-2.2l-2.1-3.1a1.4 1.4 0 0 1 2.3-1.6L8 13.6"/>',
+  push: '<path d="M4.5 12h9M10 7.5l4.5 4.5-4.5 4.5M18.5 5.5v13"/>',
+  emote: '<circle cx="12" cy="12" r="8"/><path d="M8.8 13.8c1.7 1.8 4.7 1.8 6.4 0"/><path d="M9.5 9.8v.4M14.5 9.8v.4"/>'
+};
+
+const Touch = {
+  on: false, built: false, el: null, stick: null, looks: new Map(), pinch: 0, fsTried: false, shown: false, hinted: false,
+  init() {
+    if (COARSE || QS.get('touch') === '1') this.enable();
+    // a touch screen on a laptop: the first touch turns the controls on
+    addEventListener('touchstart', () => this.enable(), { passive: true });
+    addEventListener('blur', () => this.releaseAll());
+    document.addEventListener('visibilitychange', () => { if (document.hidden) this.releaseAll(); });
+  },
+  enable() {
+    if (this.on) return;
+    this.on = true;
+    document.body.classList.add('touch');
+    this.build();
+    const dh = $('#def-panel .def-help');
+    if (dh) dh.textContent = 'Touche un mécanisme orange pour le déclencher. Joystick : déplacer la vue · glisse : tourner · pince : zoom · Saut : suivre le premier coureur';
+  },
+  // back to the mouse (a touch laptop used with its trackpad)
+  disable() {
+    if (!this.on) return;
+    this.releaseAll();
+    this.on = false;
+    document.body.classList.remove('touch');
+    if (this.el) this.el.hidden = true;
+  },
+  build() {
+    if (this.built) return;
+    this.built = true;
+    const svg = k => '<svg viewBox="0 0 24 24" aria-hidden="true">' + TC_ICONS[k] + '</svg>';
+    const root = document.createElement('div');
+    root.id = 'tc'; root.hidden = true;
+    root.innerHTML = '<div id="tc-zone"></div>'
+      + '<div id="tc-stick" class="idle"><div id="tc-knob"></div></div>'
+      + '<button type="button" class="tc-b tc-s" id="tc-push" aria-label="Pousser">' + svg('push') + '<span>Pousser</span></button>'
+      + '<button type="button" class="tc-b tc-s" id="tc-grab" aria-label="Attraper">' + svg('grab') + '<span>Attraper</span></button>'
+      + '<button type="button" class="tc-b tc-m" id="tc-dive" aria-label="Plonger">' + svg('dive') + '<span>Plonger</span></button>'
+      + '<button type="button" class="tc-b tc-l" id="tc-jump" aria-label="Sauter">' + svg('jump') + '<span id="tc-jump-lbl">Saut</span></button>'
+      + '<button type="button" class="tc-b tc-xs" id="tc-emote" aria-label="Émote">' + svg('emote') + '</button>'
+      + '<div id="tc-rotate" class="tc-rotate" hidden>Tourne ton téléphone à l\'horizontale pour mieux voir</div>';
+    const hud = $('#hud');
+    hud.parentNode.insertBefore(root, hud);
+    this.el = root;
+    this.stick = { el: $('#tc-stick'), knob: $('#tc-knob'), id: null, ox: 0, oy: 0 };
+    const zone = $('#tc-zone');
+    zone.addEventListener('pointerdown', e => this.zoneDown(e));
+    zone.addEventListener('pointermove', e => this.zoneMove(e));
+    for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) zone.addEventListener(ev, e => this.zoneUp(e));
+    // no synthetic mouse events, no scrolling, no long-press menu
+    root.addEventListener('touchstart', e => { if (e.cancelable) e.preventDefault(); }, { passive: false });
+    root.addEventListener('contextmenu', e => e.preventDefault());
+    const hold = (id, down, up) => {
+      const b = $(id);
+      let pid = null;
+      b.addEventListener('pointerdown', e => {
+        if (e.pointerType === 'mouse') return;
+        e.preventDefault();
+        if (pid !== null) return;
+        pid = e.pointerId; try { b.setPointerCapture(pid); } catch (err) { /* ignore */ }
+        b.classList.add('on'); down();
+        try { if (navigator.vibrate) navigator.vibrate(8); } catch (err) { /* ignore */ }
+      });
+      const end = e => { if (e.pointerId !== pid) return; pid = null; b.classList.remove('on'); if (up) up(); if (e.type === 'pointerup') this.firstTouch(); };
+      for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) b.addEventListener(ev, end);
+      b._release = () => { if (pid === null) return; pid = null; b.classList.remove('on'); if (up) up(); };
+    };
+    hold('#tc-jump', () => { Input.jumpEdge = true; Input.touch.jump = true; }, () => { Input.touch.jump = false; });
+    hold('#tc-dive', () => { Input.diveEdge = true; });
+    hold('#tc-grab', () => btnSet(Input.grab, 8, true), () => btnSet(Input.grab, 8, false));
+    hold('#tc-push', () => btnSet(Input.push, 8, true), () => btnSet(Input.push, 8, false));
+    hold('#tc-emote', () => { Input.emoteReq = Math.floor(Math.random() * 4); });
+  },
+  // the first finger lifted in play (touch only grants the right then): full screen and landscape
+  // where the browser allows it (Android; an iPhone keeps its browser bars)
+  firstTouch() {
+    if (this.fsTried) return;
+    this.fsTried = true;
+    SFX.ensure();
+    try {
+      const d = document.documentElement;
+      if (document.fullscreenEnabled && !document.fullscreenElement && d.requestFullscreen) {
+        const pr = d.requestFullscreen({ navigationUI: 'hide' });
+        if (pr && pr.then) pr.then(() => { try { const o = screen.orientation; if (o && o.lock) o.lock('landscape').catch(() => {}); } catch (e) { /* ignore */ } }).catch(() => {});
+      }
+    } catch (e) { /* optional */ }
+  },
+  zoneDown(e) {
+    if (e.pointerType === 'mouse') { this.disable(); return; }
+    e.preventDefault();
+    const zone = e.currentTarget;
+    try { zone.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+    const def = Game.role === 'def';
+    if (this.stick.id === null && e.clientX < innerWidth * TC.leftK) {
+      // the joystick appears under the thumb
+      const s = this.stick;
+      s.id = e.pointerId; s.ox = e.clientX; s.oy = e.clientY;
+      s.el.classList.remove('idle'); s.el.classList.add('live');
+      s.el.style.left = s.ox + 'px'; s.el.style.top = s.oy + 'px';
+      s.knob.style.transform = 'translate(-50%,-50%)';
+      return;
+    }
+    this.looks.set(e.pointerId, { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, t0: performance.now(), far: 0 });
+    Input.mx = e.clientX; Input.my = e.clientY; Input.mouseIn = true;
+    if (this.looks.size === 2) this.pinch = this.pinchDist();
+    if (def) { Input.dragging = true; Input.tdrag = true; }
+  },
+  zoneMove(e) {
+    const s = this.stick;
+    if (e.pointerId === s.id) {
+      let dx = e.clientX - s.ox, dy = e.clientY - s.oy;
+      const l = Math.hypot(dx, dy), R = TC.R;
+      // past the rim, the base follows the thumb
+      if (l > R * 1.35) { const k = (l - R * 1.35) / l; s.ox += dx * k; s.oy += dy * k; s.el.style.left = s.ox + 'px'; s.el.style.top = s.oy + 'px'; dx = e.clientX - s.ox; dy = e.clientY - s.oy; }
+      const m = Math.min(1, Math.hypot(dx, dy) / R), a = Math.atan2(dy, dx);
+      const k = m < TC.dead ? 0 : (m - TC.dead) / (1 - TC.dead);
+      Input.touch.x = Math.cos(a) * k; Input.touch.z = -Math.sin(a) * k;
+      s.knob.style.transform = 'translate(calc(-50% + ' + (Math.cos(a) * m * R).toFixed(1) + 'px),calc(-50% + ' + (Math.sin(a) * m * R).toFixed(1) + 'px))';
+      return;
+    }
+    const lk = this.looks.get(e.pointerId);
+    if (!lk) return;
+    const dx = e.clientX - lk.x, dy = e.clientY - lk.y;
+    lk.x = e.clientX; lk.y = e.clientY;
+    lk.far = Math.max(lk.far, Math.hypot(lk.x - lk.x0, lk.y - lk.y0));
+    Input.mx = e.clientX; Input.my = e.clientY;
+    if (this.looks.size >= 2) {
+      // two fingers: pinch to zoom
+      const d = this.pinchDist();
+      while (d - this.pinch > TC.pinchPx) { Input.wheel -= 1; this.pinch += TC.pinchPx; }
+      while (this.pinch - d > TC.pinchPx) { Input.wheel += 1; this.pinch -= TC.pinchPx; }
+      return;
+    }
+    Input.mdx += dx * TC.look; Input.mdy += dy * TC.look;
+  },
+  zoneUp(e) {
+    const s = this.stick;
+    if (e.type === 'pointerup') this.firstTouch();
+    if (e.pointerId === s.id) { this.stickOff(); return; }
+    const lk = this.looks.get(e.pointerId);
+    if (!lk) return;
+    this.looks.delete(e.pointerId);
+    // a short tap: a click where the finger was (Défense: fire the mechanism under it)
+    if (e.type === 'pointerup' && performance.now() - lk.t0 < TC.tapMs && lk.far < TC.tapPx) { Input.mx = lk.x; Input.my = lk.y; Input.mouseIn = true; Input.lclicks++; }
+    if (!this.looks.size) { Input.dragging = false; Input.tdrag = false; }
+  },
+  pinchDist() { const v = [...this.looks.values()]; return v.length >= 2 ? Math.hypot(v[0].x - v[1].x, v[0].y - v[1].y) : 0; },
+  stickOff() {
+    const s = this.stick;
+    s.id = null; Input.touch.x = 0; Input.touch.z = 0;
+    s.el.classList.remove('live'); s.el.classList.add('idle'); s.el.style.left = ''; s.el.style.top = '';
+    s.knob.style.transform = 'translate(-50%,-50%)';
+  },
+  releaseAll() {
+    if (!this.built) return;
+    this.stickOff();
+    this.looks.clear(); Input.dragging = false; Input.tdrag = false;
+    for (const id of ['#tc-jump', '#tc-dive', '#tc-grab', '#tc-push', '#tc-emote']) { const b = $(id); if (b && b._release) b._release(); }
+    Input.touch.jump = false;
+  },
+  // every frame: shown only while playing
+  tick() {
+    if (!this.on || !this.el) return;
+    const show = Game.screen === 'play' && !Game.paused;
+    if (show !== this.shown) {
+      this.shown = show; this.el.hidden = !show;
+      if (!show) this.releaseAll();
+      else if (!this.hinted) { this.hinted = true; setTimeout(() => { if (Game.screen === 'play' && Game.role !== 'def') toast('Joystick à gauche · glisse à droite pour la caméra', 2600); }, 1200); }
+    }
+    if (!show) return;
+    const def = Game.role === 'def';
+    this.el.classList.toggle('def', def);
+    $('#tc-jump-lbl').textContent = def ? 'Suivre' : 'Saut';
+    $('#tc-rotate').hidden = innerHeight <= innerWidth;
+  }
+};
+
 // ===================== game: scene, camera, state machine, UI =====================
 let renderer, scene, camera, sky, hemi, sun, fxGroup, sunDir = new THREE.Vector3(0.5, 1, 0.4).normalize();
 const clock = { t: 0, last: performance.now() };
@@ -9089,20 +9362,24 @@ const Quality = {
     if (dt <= 0) return;
     this.ema = lerp(this.ema, 1 / dt, 0.05);
     this.t += dt;
-    if (this.t < 4 || this.level >= 2) return;
+    if (this.t < 4 || this.level >= (COARSE ? 3 : 2)) return;
     if (this.ema < 38) { this.set(this.level + 1); this.t = 0; this.ema = 50; }
   },
   set(l) {
     this.level = l;
     if (l >= 1) { renderer.setPixelRatio(1); renderer.setSize(innerWidth, innerHeight, false); }
     if (l >= 2) { sun.castShadow = false; }
+    // phones only: below native resolution
+    if (l >= 3) { renderer.setPixelRatio(0.75); renderer.setSize(innerWidth, innerHeight, false); }
   }
 };
 
 function setupRenderer() {
   const canvas = $('#gl');
-  renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+  // phones: no MSAA on dense screens, a lower pixel ratio and a smaller shadow map
+  const dpr = window.devicePixelRatio || 1;
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: !COARSE || dpr < 2, powerPreference: 'high-performance' });
+  renderer.setPixelRatio(Math.min(dpr, COARSE ? 1.3 : 1.75));
   renderer.setSize(innerWidth, innerHeight, false);
   renderer.outputEncoding = THREE.sRGBEncoding;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -9116,7 +9393,7 @@ function setupRenderer() {
   hemi = new THREE.HemisphereLight(0xffffff, 0x888888, 0.6); scene.add(hemi);
   sun = new THREE.DirectionalLight(0xffffff, 0.8);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.mapSize.set(COARSE ? 1024 : 2048, COARSE ? 1024 : 2048);
   const sc = sun.shadow.camera; sc.left = -34; sc.right = 34; sc.top = 34; sc.bottom = -34; sc.near = 1; sc.far = 220;
   sun.shadow.bias = -0.0005; sun.shadow.normalBias = 0.03;
   scene.add(sun); scene.add(sun.target);
@@ -9622,7 +9899,7 @@ function renderLobby(force) {
     race: 'Départ simultané, et tous les coups sont permis : pousse, attrape, lance. Le premier au portail marque 10 points, puis 7, 5 et 3. Chaque éclat rapporte 1 point.',
     coop: 'Jouez en équipe : sautez sur la tête d\'un coéquipier pour une courte échelle, lancez-le au-dessus des trous, et si vous tombez, vous revenez à côté de lui. ' + (def.mission ? 'Les quatre défis de la mission ouvrent le portail.' : 'Ramassez tous les éclats pour ouvrir le portail.'),
     ring: 'Chacun pour soi sur un ring : pousse, attrape et éjecte les autres, sers-toi des marteaux, rouleaux et lasers. Le dernier debout gagne la manche (5, 3 puis 1 point) et chaque éjection rapporte 2 points. Toutes les 30 à 60 s, un événement : tornade, gravité réduite, vent, météorites, aimant, sol gelé, mode fantôme, commandes inversées.',
-    boss: 'Tous ensemble contre le directeur. Ramasse une bombe (clic gauche) et lance-la (clic droit), ou fais-toi lancer sur lui par un coéquipier, bombe en main. Il frappe le sol, démolit son bureau, appelle ses robots et s\'énerve à chaque phase. Battez-le avant la fin du temps.',
+    boss: 'Tous ensemble contre le directeur. Ramasse une bombe (' + kb('clic gauche', 'Attraper') + ') et lance-la (' + kb('clic droit', 'Pousser') + '), ou fais-toi lancer sur lui par un coéquipier, bombe en main. Il frappe le sol, démolit son bureau, appelle ses robots et s\'énerve à chaque phase. Battez-le avant la fin du temps.',
     defense: 'Un joueur défend, les autres courent. Le défenseur survole le parcours et déclenche tourelles, ventilateurs, trappes, pistons et portes. Le rôle tourne à chaque niveau.' + (players.length < 2 ? ' Il faut au moins 2 joueurs.' : '')
   };
   $('#mode-hint').textContent = hints[gs.md];
@@ -10225,7 +10502,7 @@ function updatePlay(dt, now) {
       if (Game.spec < 0 || Game.spec >= t.length) Game.spec = 0;
       const r = Game.remotes.get(t[Game.spec].peer);
       focus = r.rp; vel = null;
-      st.hidden = false; st.textContent = 'Tu suis ' + r.name + ' · Espace pour changer de joueur';
+      st.hidden = false; st.textContent = 'Tu suis ' + r.name + ' · ' + kb('Espace', 'Saut') + ' pour changer de joueur';
     } else { st.hidden = false; st.textContent = Game.out ? 'Éliminé' : Game.players.length > 1 ? 'Tout le monde est arrivé' : 'Niveau terminé'; vel = null; }
   } else st.hidden = true;
   if (!def) { if (!Game.paused) Cam.follow(dt, focus, vel); else Cam.apply(); }
@@ -10571,8 +10848,10 @@ function bindUI() {
   $('#btn-music').addEventListener('click', () => { SFX.ensure(); MUSIC.toggle(); $('#btn-music').textContent = musicLabel(); });
   $('#btn-music-lobby').addEventListener('click', () => { SFX.ensure(); MUSIC.toggle(); renderLobby(true); });
   // browsers only allow sound after a first click or key press: start the music then
-  const unlock = () => { SFX.ensure(); removeEventListener('pointerdown', unlock, true); removeEventListener('keydown', unlock, true); };
-  addEventListener('pointerdown', unlock, true); addEventListener('keydown', unlock, true);
+  // (iPhone: only a touchend or a click counts, so keep listening until the audio really runs)
+  const UNLOCK_EV = ['pointerdown', 'keydown', 'touchend', 'click'];
+  const unlock = () => { SFX.ensure(); if (SFX.ctx && SFX.ctx.state === 'running') UNLOCK_EV.forEach(ev => removeEventListener(ev, unlock, true)); };
+  UNLOCK_EV.forEach(ev => addEventListener(ev, unlock, true));
   $('#btn-fs').addEventListener('click', () => {
     try {
       if (document.fullscreenElement) { const r = document.exitFullscreen(); if (r && r.catch) r.catch(() => {}); }
@@ -10643,6 +10922,7 @@ function frame(now) {
   clock.last = now; clock.t += dt;
   if (Game.screen === 'play' && !document.hidden && raw < 0.5) Quality.sample(raw);
   Input.pollPad();
+  Touch.tick();
   if (Net.game || Net.solo) netTick(now);
   musicTick();
   if (Game.screen === 'play') updatePlay(dt, now);
@@ -10665,6 +10945,7 @@ async function start() {
   P.blob.addTo(scene);
   Input.init($('#gl'), onKey);
   Input.wantLock = () => Game.screen === 'play' && !Game.paused && Game.role !== 'def';
+  Touch.init();
   bindUI();
   Board.init();
   if (QS.get('lowgfx')) Quality.set(2);
