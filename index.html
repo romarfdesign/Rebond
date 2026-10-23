@@ -99,9 +99,11 @@ kbd{font:600 12px/1 var(--f-text);padding:6px 9px;border-radius:8px;background:r
 .solo-note{font-size:13px;color:var(--muted);margin:14px 0 0}
 .touch-note{display:none;font-size:13px;color:var(--peach);margin:0 0 18px}
 body.touch .touch-note{display:block}
-.keys-touch{display:none}
+.keys-line{display:none;margin:16px 0 0;max-width:460px;font-size:12px;line-height:2.3;color:var(--muted)}
+.keys-line kbd{margin:0 2px 0 6px;padding:4px 7px;font-size:11px}
+.keys-line kbd:first-child{margin-left:0}
 body.touch .keys{display:none}
-body.touch .keys.keys-touch{display:grid}
+body.touch .keys-line{display:block}
 body.touch .hud-help{display:none}
 
 /* ---------- lobby ---------- */
@@ -186,7 +188,7 @@ body.touch .hud-help{display:none}
 /* ---------- HUD ---------- */
 #hud{position:fixed;inset:0;pointer-events:none;font-variant-numeric:tabular-nums}
 #hud .hud-tl{position:absolute;top:calc(16px + env(safe-area-inset-top,0px));left:16px;display:flex;flex-direction:column;align-items:flex-start;gap:8px}
-.hud-title{font:700 22px/1.1 var(--f-display);padding:10px 16px;border-radius:14px;background:var(--glass-strong);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.hud-title{transition:opacity .6s;font:700 22px/1.1 var(--f-display);padding:10px 16px;border-radius:14px;background:var(--glass-strong);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
 #hud .hud-tr{position:absolute;top:calc(16px + env(safe-area-inset-top,0px));right:16px;display:flex;gap:8px;align-items:center;pointer-events:auto}
 .pill-stat{display:inline-flex;align-items:center;gap:10px;padding:10px 16px;border-radius:999px;background:var(--glass-strong);font:700 16px/1 var(--f-text);
   -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);min-height:42px}
@@ -229,6 +231,7 @@ body.touch .hud-help{display:none}
 .hud-help{position:absolute;left:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));display:flex;flex-wrap:wrap;gap:8px;max-width:calc(100% - 32px);transition:opacity .6s}
 .hud-help span{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;background:var(--glass-strong);font-size:12px;color:rgba(255,255,255,.85)}
 .hud-help.fade{opacity:0}
+.hud-title.fade{opacity:0}
 .spec{position:absolute;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);padding:10px 18px;border-radius:999px;background:var(--glass-strong);font-size:13px}
 .flash{position:fixed;inset:0;background:var(--white);opacity:0;pointer-events:none;transition:opacity .35s}
 .flash.on{opacity:.55;transition:none}
@@ -355,7 +358,7 @@ body.touch .hud-help{display:none}
   background:rgba(15,44,70,.82);border:1px solid rgba(255,255,255,.2);font:600 12px/1.3 var(--f-text);text-align:center;width:max-content;max-width:calc(100% - 32px);pointer-events:none}
 /* landscape phones: everything has to fit in ~390 px of height */
 @media (max-height:520px) and (orientation:landscape){
-  .screen{padding-block:12px}
+  .screen{padding-block:8px}
   .menu-grid{grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);gap:22px}
   .h1{font-size:46px;margin-top:10px}
   .lede{font-size:14px;margin-top:10px}
@@ -370,6 +373,25 @@ body.touch .hud-help{display:none}
   .hud-title{font-size:16px;padding:7px 12px}
   .tc-xs{top:calc(58px + env(safe-area-inset-top,0px))}
   .btn{min-height:42px;padding:11px 20px}
+  /* menu without scrolling: no intro paragraph, no avatar preview, tighter fields */
+  .lede{display:none}
+  .menu-avatar{display:none}
+  .menu-panel{padding:14px 18px}
+  .field + .field{margin-top:12px}
+  .label{margin-bottom:7px}
+  input[type=text]{min-height:42px;padding:10px 16px}
+  .swatch{width:32px;height:32px}
+  .hairline{margin:14px 0}
+  .actions{margin-top:14px}
+  .open-games{margin-top:8px}
+  .join-form{margin-top:8px}
+  .msg{margin-top:4px;min-height:0}
+  /* less text over the game */
+  .hud-center{top:32%}
+  .countdown{font-size:clamp(56px,18vh,120px)}
+  .countdown.go{font-size:clamp(34px,10vh,64px)}
+  .toast{font-size:14px;padding:8px 14px;margin-top:6px}
+  .bigword{font-size:clamp(34px,11vh,64px)}
   .h2{font-size:24px;margin-top:8px}
   body.touch .touch-note{display:none}
   .lobby-panel{padding:14px;gap:14px}
@@ -384,6 +406,10 @@ body.touch .hud-help{display:none}
 }
 /* narrow portrait phones: the level name moves under the counters */
 @media (max-width:560px){
+  body.touch .lede{display:none}
+  body.touch .menu-avatar{display:none}
+  .h1{font-size:52px}
+  .toast{font-size:14px;padding:8px 14px}
   #hud #hud-eyebrow{display:none}
   #hud .hud-tl{top:calc(66px + env(safe-area-inset-top,0px))}
   .hud-title{font-size:16px;padding:7px 12px}
@@ -410,18 +436,11 @@ body.touch .hud-help{display:none}
         <div><dt><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd></dt><dd>Émotes</dd></div>
         <div><dt><kbd>Échap</kbd><kbd>M</kbd><kbd>N</kbd></dt><dd>Pause, couper le son, couper la musique</dd></div>
       </dl>
-      <dl class="keys keys-touch">
-        <div><dt><kbd>Joystick</kbd></dt><dd>Pouce gauche : se déplacer</dd></div>
-        <div><dt><kbd>Glisser</kbd></dt><dd>À droite de l'écran : tourner la caméra</dd></div>
-        <div><dt><kbd>Saut</kbd></dt><dd>Sauter, puis double saut en l'air</dd></div>
-        <div><dt><kbd>Plonger</kbd></dt><dd>Passe sous les barres basses, allonge un double saut</dd></div>
-        <div><dt><kbd>Attraper</kbd></dt><dd>Attraper, tirer. En tombant : s'accrocher</dd></div>
-        <div><dt><kbd>Pousser</kbd></dt><dd>Pousser, lancer. Maintenir pour une grosse baffe</dd></div>
-      </dl>
+      <p class="keys-line"><kbd>Joystick</kbd> bouger <kbd>Glisser</kbd> caméra <kbd>Saut</kbd> ×2 en l'air <kbd>Plonger</kbd> sous les barres <kbd>Attraper</kbd> s'accrocher <kbd>Pousser</kbd> lancer</p>
     </header>
 
     <div class="panel menu-panel">
-      <p class="touch-note">Sur téléphone, tourne-le à l'horizontale : joystick à gauche, boutons à droite.</p>
+      <p class="touch-note">Tourne ton téléphone à l'horizontale pour jouer.</p>
       <div class="menu-avatar">
         <div class="avatar-stage avatar-small" id="avatar-menu"></div>
         <div class="menu-avatar-txt"><span class="label">Ton personnage</span><p class="sub">Choisis ta couleur ici, ton chapeau dans le salon.</p></div>
@@ -1447,6 +1466,9 @@ const PAINT = {
 };
 
 // ---------- text sprites (canvas) ----------
+// help signs already learnt: the best difficulty finished per level (localStorage), -1 when never finished
+function signDone(idx) { try { const m = JSON.parse(store.get('signsDone', '{}')); return m && m[idx] != null ? +m[idx] : -1; } catch (e) { return -1; } }
+function signLearnt(idx, diff) { try { const m = JSON.parse(store.get('signsDone', '{}')) || {}; if (!(m[idx] >= diff)) { m[idx] = diff; store.set('signsDone', JSON.stringify(m)); } } catch (e) { /* ignore */ } }
 function makeLabel(text, o) {
   o = o || {};
   const canvas = document.createElement('canvas');
@@ -1953,9 +1975,15 @@ class Level {
   }
   addDeco(d) {
     if (d.type === 'sign') {
-      const l = this.label(typeof signText === 'function' ? signText(d.text) : d.text, { font: '600 34px Montserrat, sans-serif', bg: 'rgba(255,255,255,0.94)', fg: TOK.ink, scale: 0.0068, h: 70 });
+      // a help sign shows until you have finished this level at the sign's difficulty; it fades when the camera
+      // comes close so that it never covers the screen (smaller on a phone)
+      if (!this.def.gen && signDone(this.index) >= (d.tier || 0)) return;
+      const tch = typeof Touch !== 'undefined' && Touch.on;
+      const l = this.label(typeof signText === 'function' ? signText(d.text) : d.text, { font: '600 34px Montserrat, sans-serif', bg: 'rgba(255,255,255,0.94)', fg: TOK.ink, scale: tch ? 0.0054 : 0.0068, h: 70 });
       l.sprite.position.set(d.x, d.y, d.z);
       this.root.add(l.sprite);
+      const sp = l.sprite;
+      this.anims.push(() => { if (typeof camera === 'undefined') return; const dd = camera.position.distanceTo(sp.position); sp.material.opacity = clamp((dd - 3.5) / 3.5, 0, 1); sp.visible = dd > 3.5; });
     } else if (d.type === 'column' && this.theme.column) {
       this.root.add(this.theme.column(this, d));
     } else if (this.theme.deco) this.theme.deco(this, d);
@@ -4649,11 +4677,11 @@ const FIGHT = {
 };
 const FIGHT_PHASES = [
   null,
-  { say: 'Vous osez venir jusqu\'ici ?', toast: 'Le directeur frappe son bureau : sautez par-dessus les ondes' },
-  { say: 'Je vais tout casser !', toast: 'Le directeur démolit son bureau : le bord s\'effondre' },
-  { say: 'Sécurité !', toast: 'Ses robots arrivent, et ses tampons géants avec' },
-  { say: 'Plus vite que ça !', toast: 'Le directeur accélère : ondes doubles et tampons en rafale' },
-  { say: 'Vous êtes tous virés !', toast: 'Le directeur est furieux : il ne reste presque plus rien du bureau' }
+  { say: 'Vous osez venir jusqu\'ici ?', toast: 'Sautez les ondes' },
+  { say: 'Je vais tout casser !', toast: 'Le bord s\'effondre' },
+  { say: 'Sécurité !', toast: 'Robots et tampons' },
+  { say: 'Plus vite que ça !', toast: 'Il accélère' },
+  { say: 'Vous êtes tous virés !', toast: 'Presque plus de bureau' }
 ];
 function fight1() {
   const b = LB('direction', 'Le face-à-face', 'Le directeur en personne : bombes, lancers et travail d\'équipe');
@@ -4952,7 +4980,8 @@ function LB(theme, name, sub) {
     gem(x, y, z) { d.gems.push([x, y, r2(z + (d._dz || 0))]); return api; },
     check(x, top, z) { d.checks.push(oz({ x, top, z })); return api; },
     finish(x, top, z, w, dd) { const p = oz({ x, top, z, w, d: dd }); d.plats.push(p); d.finish = d._last = p; return api; },
-    sign(x, y, z, text) { d.deco.push(d._last = oz({ type: 'sign', x, y, z, text })); return api; },
+    // help signs: tier 0 on every difficulty, 1 from Chaos, 2 Insane only (hidden once that run is done, see world.js)
+    sign(x, y, z, text) { d.deco.push(d._last = oz({ type: 'sign', x, y, z, text, tier: d.insaneFrom ? 2 : d.hardFrom ? 1 : 0 })); return api; },
     // the last item added gets a harder version in Chaos (`hard`) and in Insane (`crazy`, on top of `hard`)
     harder(hard, crazy) { if (d._last) { if (hard) d._last.hard = hard; if (crazy) d._last.crazy = crazy; } return api; },
     deco(o) { d.deco.push(oz(o)); return api; },
@@ -5938,7 +5967,7 @@ class Blob {
   scare(t) { this.scareT = Math.max(this.scareT, t || 0.6); }
   say(text, dur) {
     if (!this.bubble) {
-      this.bubble = makeLabel(text, { font: '700 40px Nohemi, Montserrat, sans-serif', bg: 'rgba(255,255,255,0.97)', fg: TOK.ink, depthTest: false, renderOrder: 22, scale: 0.0062, border: TOK.ink });
+      this.bubble = makeLabel(text, { font: '700 40px Nohemi, Montserrat, sans-serif', bg: 'rgba(255,255,255,0.97)', fg: TOK.ink, depthTest: false, renderOrder: 22, scale: 0.0052, border: TOK.ink });
       this.root.add(this.bubble.sprite);
     } else this.bubble.set(text);
     this.bubble.sprite.position.set(0, this.bubbleY, 0);
@@ -7215,7 +7244,7 @@ function throwGrab() {
   const G = P.grab, [fx, fz] = facingVec();
   // a spinning throw goes further
   const k = 1 + Math.min(INT.spinMax, Math.max(0, Act.spin - 3) / 10);
-  if (k > 1.25) { toast('Lancer tournoyant', 1000); Cam.shake = Math.max(Cam.shake, 0.2); }
+  if (k > 1.25) Cam.shake = Math.max(Cam.shake, 0.2);
   if (G.kind === 'p') sendHit(G.peer, 't', fx, fz, INT.throwSpeed * k);
   else foeHit(G.foe, fx, fz, INT.throwSpeed * k, 't');
   Act.throws++; Act.psN++;
@@ -7303,7 +7332,6 @@ function endHang(why) {
   if (why === 'saved') { toast('Sauvé par ' + H.name, 1600); SFX.check(); shout(19); }
   else if (why === 'shaken') { toast(H.name + ' t\'a secoué', 1400); P.vel.y = -2; }
   else if (why === 'vault') { P.vel.y = 10.5; P.airJumps = 1; const r = Game.remotes.get(H.peer); if (r) { const dx = r.rp.x - P.pos.x, dz = r.rp.z - P.pos.z, d = Math.hypot(dx, dz) || 1; P.vel.x = dx / d * 3.5; P.vel.z = dz / d * 3.5; } SFX.boing(); }
-  else if (why === 'slip') toast('Ça glisse', 1000);
 }
 
 // ---------- hanging from a ledge (Ring, coop, boss) ----------
@@ -7340,7 +7368,7 @@ function endLedge(why) {
   if (why === 'climb') {
     const s = E.s, x = s.min[0] + E.ox - E.nx * 0.55, z = s.min[2] + E.oz - E.nz * 0.55;
     P.pos.set(x, s.max[1] + 0.02, z); P.vel.set(-E.nx * 2, 4, -E.nz * 2); P.airJumps = 1; SFX.boing(); shout(19);
-  } else if (why === 'slip') toast('Ça glisse', 1000);
+  }
 }
 // anything that knocks me also makes me let go
 function interactDrop() { if (P.hang) endHang(); if (P.ledge) endLedge(); }
@@ -7357,7 +7385,7 @@ function escapePress() {
     const r = Game.remotes.get(P.heldBy);
     if (r) { const dx = r.rp.x - P.pos.x, dz = r.rp.z - P.pos.z, d = Math.hypot(dx, dz) || 1; sendHit(P.heldBy, 'p', dx / d, dz / d, 6); }
     P.heldBy = null; P.heldKey = null; P.heldAll = null; P.holdTarget = null; Net.set({ hb: null });
-    P.vel.y = 8; P.airJumps = 1; SFX.boing(); toast('Libéré', 1000);
+    P.vel.y = 8; P.airJumps = 1; SFX.boing();
   }
   return true;
 }
@@ -8007,11 +8035,11 @@ function pistonShape(u) {
 // the course's own mechanisms as the phases bring them out).
 const BOSS_PHASES = [
   null,
-  { say: 'Qui vous a laissés entrer ?', toast: 'Le directeur vous a vus : il lance des tampons' },
-  { say: 'Il fait trop chaud ici', toast: 'Le directeur allume la clim : gare aux courants d\'air' },
-  { say: 'Sécurité !', toast: 'Le directeur lâche ses robots aspirateurs' },
-  { say: 'Heures sup pour tout le monde !', toast: 'Le directeur tape sur son bureau : sautez par-dessus les ondes' },
-  { say: 'Vous êtes tous virés !', toast: 'Le directeur est furieux : son bureau part en morceaux' }
+  { say: 'Qui vous a laissés entrer ?', toast: 'Il lance des tampons' },
+  { say: 'Il fait trop chaud ici', toast: 'Gare aux courants d\'air' },
+  { say: 'Sécurité !', toast: 'Ses robots arrivent' },
+  { say: 'Heures sup pour tout le monde !', toast: 'Sautez les ondes' },
+  { say: 'Vous êtes tous virés !', toast: 'Son bureau s\'effondre' }
 ];
 const BOSS_MAX = 5;
 
@@ -8127,11 +8155,11 @@ Level.prototype.addBoss = function (o) {
   desk.add(L.mesh(boxGeo(7, 1.3, 0.5), [M.edge, M.edge, M.edge, M.edge, L.basic('plateM', { map: plate }), M.edge], { p: [o.x - 3.5, top + 0.65, dz + 2.6], r: [-0.25, 0, 0], cast: true }));
   if (!o.arena) L.root.add(desk);
   // name tag and speech bubble (outside the scaled blob so they stay crisp)
-  const tag = L.label('/ Le directeur', { font: '700 46px Nohemi, Montserrat, sans-serif', bg: 'rgba(15,44,70,0.9)', scale: 0.03, depthTest: false, renderOrder: 18 });
+  const tag = L.label('/ Le directeur', { font: '700 46px Nohemi, Montserrat, sans-serif', bg: 'rgba(15,44,70,0.9)', scale: 0.022, depthTest: false, renderOrder: 18 });
   tag.sprite.position.set(o.x, baseY + s * 1.55, o.z);
   if (o.arena) tag.sprite.visible = false;
   L.root.add(tag.sprite);
-  const bubble = L.label('…', { font: '700 42px Nohemi, Montserrat, sans-serif', bg: 'rgba(255,255,255,0.97)', fg: TOK.ink, border: TOK.ink, scale: o.arena ? 0.02 : 0.034, depthTest: false, renderOrder: 22 });
+  const bubble = L.label('…', { font: '700 42px Nohemi, Montserrat, sans-serif', bg: 'rgba(255,255,255,0.97)', fg: TOK.ink, border: TOK.ink, scale: o.arena ? 0.016 : 0.024, depthTest: false, renderOrder: 22 });
   bubble.sprite.position.set(o.x + 0.9 * s, baseY + s * 0.95, o.z + 0.35 * s); bubble.sprite.visible = false;
   L.root.add(bubble.sprite);
   const muzzle = new THREE.Object3D(); muzzle.position.set(0.32, 1.05, 0.35); blob.inner.add(muzzle);
@@ -8268,7 +8296,7 @@ function bossEnable(k) {
   L.boss.say(ph.say, 3.8); L.boss.angry();
   if (k === 5) L.boss.rage();
   SFX.boss();
-  toast(ph.toast, 3400);
+  toast(ph.toast, 2200);
 }
 function bossTick(dt) {
   const L = Game.level;
@@ -9339,7 +9367,7 @@ const Touch = {
     if (show !== this.shown) {
       this.shown = show; this.el.hidden = !show;
       if (!show) this.releaseAll();
-      else if (!this.hinted) { this.hinted = true; setTimeout(() => { if (Game.screen === 'play' && Game.role !== 'def') toast('Joystick à gauche · glisse à droite pour la caméra', 2600); }, 1200); }
+      else if (!this.hinted && !store.get('tcHint', false)) { this.hinted = true; setTimeout(() => { if (Game.screen === 'play' && Game.role !== 'def') { toast('Joystick à gauche · glisse à droite pour la caméra', 2600); store.set('tcHint', true); } }, 1200); }
     }
     if (!show) return;
     const def = Game.role === 'def';
@@ -9976,6 +10004,8 @@ function startLevel(lv, md, sq) {
   const def = L.def;
   $('#hud-eyebrow').textContent = (md === 'ring' ? 'Arène ' : md === 'boss' ? 'Combat ' : 'Niveau ') + (lv + 1) + ' · ' + MODE_NAMES[md] + (L.insane ? ' · Insane' : L.chaos ? ' · Chaos' : '') + (def.gen ? ' · tracé n° ' + def.seed : '') + (Game.role === 'def' ? ' · Défenseur' : '');
   $('#hud-title').textContent = '/ ' + def.name;
+  $('#hud-title').classList.remove('fade'); clearTimeout(Game.titleTimer);
+  if (Touch.on) Game.titleTimer = setTimeout(() => $('#hud-title').classList.add('fade'), 5000);
   $('#hud-help').classList.remove('fade');
   clearTimeout(Game.helpTimer);
   Game.helpTimer = setTimeout(() => $('#hud-help').classList.add('fade'), lv === 0 ? 12000 : 6000);
@@ -9987,14 +10017,12 @@ function startLevel(lv, md, sq) {
   $('#gl').style.cursor = 'default';
   renderMission(true);
   const dname = md === 'defense' ? cleanName(((Game.players.find(p => p.peer === (Game.gs && Game.gs.df)) || {}).presence || {}).n) || 'Le défenseur' : '';
-  toast(Game.role === 'def' ? 'Tu défends : clique sur les mécanismes pour faire tomber les coureurs'
-    : md === 'defense' ? dname + ' défend le parcours : méfie-toi des pièges'
-    : md === 'ring' ? (L.insane ? 'Ring Insane : tampons géants, dossiers et rafales, le bord tombe très vite' : L.chaos ? 'Ring en mode Chaos : éjecte tout le monde et survis aux pièges' : 'Éjecte tout le monde du ring et reste debout')
-    : def.gen ? 'Tracé n° ' + def.seed + ' : ' + def.sections.join(', ')
-    : L.boss ? 'Le directeur vous attend : plus vous approchez, plus il s\'énerve'
-    : L.mission ? 'Mission : ' + L.mission.length + ' défis à réussir ensemble' : md === 'coop' ? 'Ramassez les ' + L.gems.length + ' éclats pour ouvrir le portail' : 'Premier au portail, tous les coups sont permis', 3200);
+  // one short line, only when the lobby did not already say it
+  const intro = Game.role === 'def' ? kb('Tu défends : clique sur les mécanismes', 'Tu défends : touche les mécanismes')
+    : md === 'defense' ? dname + ' défend le parcours'
+    : md === 'coop' && !L.mission ? L.gems.length + ' éclats ouvrent le portail' : '';
+  if (intro) toast(intro, 2400);
 }
-const FALL_LINES = ['Oups', 'Plouf', 'Même pas mal', 'Raté, mais avec style', 'La gravité gagne encore', 'On fait comme si de rien n\'était', 'Personne n\'a rien vu'];
 function respawn(silent) {
   const team = silent ? null : teamRespawnPoint();
   const at = team || P.respawn;
@@ -10008,7 +10036,8 @@ function respawn(silent) {
   if (!silent) {
     Game.falls++; Net.set({ fl: Game.falls });
     const ko = creditKO();
-    toast(ko && ko.name ? 'Éjecté par ' + ko.name : team ? 'Retour auprès de ' + team.name : FALL_LINES[Math.floor(Math.random() * FALL_LINES.length)], 1600);
+    // only when it says something: who threw you, or whom you come back to
+    if (ko && ko.name) toast('Éjecté par ' + ko.name, 1400); else if (team) toast('Retour auprès de ' + team.name, 1400);
   }
 }
 // spectacular moments: a short slow motion (not in a race, where every hundredth counts), a zoom, big words
@@ -10023,7 +10052,14 @@ function clutchMoment(text, pos, strong) {
   SFX.clutch();
   if (pos) FX.burst(new THREE.Vector3(pos.x, pos.y + 0.8, pos.z), TOK.vivid, strong ? 26 : 16, 5, 0.09, 3, 0.6);
 }
+// automatic quips (not the emotes the player asks for): only the fall and being grabbed, one every few seconds
+const AUTO_SHOUTS = new Set([10, 15]);
 function shout(id) {
+  if (id >= EMOTES.length) {
+    const now = performance.now();
+    if (!AUTO_SHOUTS.has(id) || now - (Game.shoutAt || 0) < 4000) return;
+    Game.shoutAt = now;
+  }
   Game.emN++;
   Net.set({ em: [id, Game.emN] });
   const txt = id < EMOTES.length ? EMOTES[id] : SHOUTS[id];
@@ -10127,6 +10163,7 @@ function collectGem(g) {
 }
 function reachFinish() {
   Game.done = true; Game.ft = Math.round(Game.elapsed); P.frozen = true;
+  if (!Game.level.def.gen) signLearnt(Game.levelIdx, levelDiff(Game.level));
   SFX.finish();
   const f = Game.level.finish;
   const pc = Net.me.c || 0;
